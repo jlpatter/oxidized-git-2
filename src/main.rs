@@ -1,48 +1,40 @@
-use iced::widget::{button, row, text};
+use iced::widget::{button, row};
 use iced::{Alignment, Element, Padding, Sandbox, Settings};
 
 
 fn main()  -> iced::Result {
-    Counter::run(Settings::default())
+    OxidizedGit2::run(Settings::default())
 }
 
-struct Counter {
-    value: i32,
-}
+struct OxidizedGit2 {}
 
 #[derive(Debug, Clone, Copy)]
 enum Message {
-    IncrementPressed,
-    DecrementPressed,
+    HelloWorldPressed,
 }
 
-impl Sandbox for Counter {
+impl Sandbox for OxidizedGit2 {
     type Message = Message;
 
     fn new() -> Self {
-        Self { value: 0 }
+        Self {}
     }
 
     fn title(&self) -> String {
-        String::from("Counter - Iced")
+        String::from("Oxidized Git 2")
     }
 
     fn update(&mut self, message: Message) {
         match message {
-            Message::IncrementPressed => {
-                self.value += 1;
-            }
-            Message::DecrementPressed => {
-                self.value -= 1;
+            Message::HelloWorldPressed => {
+                println!("Hello World!");
             }
         }
     }
 
     fn view(&self) -> Element<Message> {
         row![
-            button("Increment").on_press(Message::IncrementPressed),
-            text(self.value).size(50),
-            button("Decrement").on_press(Message::DecrementPressed)
+            button("Click me!").on_press(Message::HelloWorldPressed)
         ]
         .padding(Padding::from([20, 0, 0, 20]))
         .align_items(Alignment::Center)

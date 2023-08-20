@@ -7,6 +7,8 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.*"
-iced = "0.10.*"
+egui = "0.22.*"
+eframe = "0.22.*"
 rfd = "0.11.*"
+directories = "5.0.*"
 git2 = "0.17.*"

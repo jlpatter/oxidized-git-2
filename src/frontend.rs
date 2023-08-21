@@ -1,5 +1,5 @@
 use anyhow::Result;
-use egui::{Color32, Stroke, Ui};
+use egui::{Color32, Label, Resize, ScrollArea, Stroke, Ui};
 use git2::Repository;
 use crate::git_functions;
 
@@ -63,9 +63,9 @@ impl OG2App {
     fn show_tabs(&mut self, ui: &mut Ui) {
         // TODO: Figure out how to make a layout for tabs.
         ui.horizontal(|ui| {
-            for tab in &self.tabs {
-                if ui.button(&tab.name).clicked() {
-                    // TODO: Implement tab clicked.
+            for (i, tab) in self.tabs.iter().enumerate() {
+                if ui.selectable_label(self.active_tab == i, &tab.name).clicked() {
+                    self.active_tab = i;
                 }
             }
         });
@@ -102,6 +102,28 @@ impl OG2Tab {
         }
     }
 
+    fn show_branch_tree(&mut self, ui: &mut Ui) {
+        // TODO: Show branch tree.
+        Resize::default().min_width(100.0).show(ui, |ui| {
+            ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
+                ui.vertical(|ui| {
+                    ui.add(Label::new("BLURG 1asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfsdf").wrap(false));
+                    ui.label("BLURG 2");
+                });
+            });
+        });
+    }
+
+    fn show_graph(&mut self, ui: &mut Ui) {
+        // TODO: Show Graph.
+        // This is an example of how the graph could be rendered.
+        let start_position = ui.cursor().left_top();
+        let painter = ui.painter();
+        painter.line_segment([start_position + egui::vec2(10.0, 10.0), start_position + egui::vec2(10.0, 40.0)], Stroke::new(3.0, Color32::RED));
+        painter.circle_filled(start_position + egui::vec2(10.0, 10.0), 7.0, Color32::RED);
+        painter.circle_filled(start_position + egui::vec2(10.0, 40.0), 7.0, Color32::RED);
+    }
+
     pub fn show(&mut self, ui: &mut Ui) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
@@ -116,12 +138,10 @@ impl OG2Tab {
                 }
             });
 
-            // This is an example of how the graph could be rendered.
-            let start_position = ui.cursor().left_top();
-            let painter = ui.painter();
-            painter.line_segment([start_position + egui::vec2(10.0, 10.0), start_position + egui::vec2(10.0, 40.0)], Stroke::new(3.0, Color32::RED));
-            painter.circle_filled(start_position + egui::vec2(10.0, 10.0), 7.0, Color32::RED);
-            painter.circle_filled(start_position + egui::vec2(10.0, 40.0), 7.0, Color32::RED);
+            ui.horizontal(|ui| {
+                self.show_branch_tree(ui);
+                self.show_graph(ui);
+            });
         });
     }
 }

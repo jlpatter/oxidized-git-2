@@ -28,16 +28,44 @@ impl OG2App {
         Self::default()
     }
 
-    fn show_welcome_page(&mut self, ui: &mut Ui) {
+    fn show_starting_btns(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
+            if ui.button("Init").clicked() {
+                // TODO: Implement Init
+            }
             if ui.button("Open").clicked() {
                 let repo_opt_opt = handle_error(git_functions::open_repo());
                 // If it didn't throw an error
                 if let Some(repo_opt) = repo_opt_opt {
                     // If a repo was actually opened
                     if let Some(repo) = repo_opt {
-                        self.tabs.push(OG2Tab::new(repo));
+
+                        let mut name = String::from("(None)");
+                        let repo_path = repo.path();
+                        if let Some(repo_path_root) = repo_path.parent() {
+                            if let Some(os_s) = repo_path_root.file_name() {
+                                if let Some(s) = os_s.to_str() {
+                                    name = String::from(s);
+                                }
+                            }
+                        }
+
+                        self.tabs.push(OG2Tab::new(name, repo));
                     }
+                }
+            }
+            if ui.button("Clone").clicked() {
+                // TODO: Implement Clone
+            }
+        });
+    }
+
+    fn show_tabs(&mut self, ui: &mut Ui) {
+        // TODO: Figure out how to make a layout for tabs.
+        ui.horizontal(|ui| {
+            for tab in &self.tabs {
+                if ui.button(&tab.name).clicked() {
+                    // TODO: Implement tab clicked.
                 }
             }
         });
@@ -46,23 +74,30 @@ impl OG2App {
 
 impl eframe::App for OG2App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::TopBottomPanel::top("my_panel").show_separator_line(false).show(ctx, |ui| {
+            self.show_starting_btns(ui);
+            self.show_tabs(ui);
+        });
+
         egui::CentralPanel::default().show(ctx, |ui| {
             if self.tabs.len() > 0 {
                 self.tabs[self.active_tab].show(ui);
             } else {
-                self.show_welcome_page(ui);
+                // TODO: Add welcome splash screen?
             }
         });
     }
 }
 
 pub struct OG2Tab {
+    name: String,
     repo: Repository,
 }
 
 impl OG2Tab {
-    fn new(repo: Repository) -> Self {
+    fn new(name: String, repo: Repository) -> Self {
         Self {
+            name,
             repo
         }
     }
@@ -72,6 +107,12 @@ impl OG2Tab {
             ui.horizontal(|ui| {
                 if ui.button("Fetch").clicked() {
                     // TODO: Implement Fetch
+                }
+                if ui.button("Pull").clicked() {
+                    // TODO: Implement Pull
+                }
+                if ui.button("Push").clicked() {
+                    // TODO: Implement Push
                 }
             });
 

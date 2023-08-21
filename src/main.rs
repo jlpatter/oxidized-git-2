@@ -5,9 +5,10 @@ mod frontend;
 
 fn main()  -> eframe::Result<()> {
     let options = eframe::NativeOptions {
-        min_window_size: Some(egui::vec2(840.0, 680.0)),
-        // TODO: Figure out why this isn't working :(
+        // This is broken for some reason :(
         maximized: true,
+        centered: true,
+        app_id: Some("oxidized-git-2".to_owned()),
         ..Default::default()
     };
     eframe::run_native("Oxidized Git 2", options, Box::new(|cc| Box::new(OG2App::new(cc))))

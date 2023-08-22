@@ -1,7 +1,7 @@
 use anyhow::Result;
 use egui::{Align, Color32, CursorIcon, Label, Layout, ScrollArea, SelectableLabel, Sense, Stroke, Ui};
 use git2::Repository;
-use crate::git_functions;
+use crate::git_utils;
 
 fn handle_error<T>(result: Result<T>) -> Option<T> {
     match result {
@@ -34,7 +34,7 @@ impl OG2App {
                 // TODO: Implement Init
             }
             if ui.button("Open").clicked() {
-                let repo_opt_opt = handle_error(git_functions::open_repo());
+                let repo_opt_opt = handle_error(git_utils::open_repo());
                 // If it didn't throw an error
                 if let Some(repo_opt) = repo_opt_opt {
                     // If a repo was actually opened

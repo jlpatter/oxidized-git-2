@@ -1,6 +1,6 @@
 use crate::frontend::OG2App;
 
-mod git_functions;
+mod git_utils;
 mod frontend;
 
 fn main()  -> eframe::Result<()> {

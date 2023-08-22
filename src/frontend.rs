@@ -1,5 +1,5 @@
 use anyhow::Result;
-use egui::{Color32, Label, Resize, ScrollArea, Stroke, Ui};
+use egui::{Align, Color32, CursorIcon, Label, Layout, ScrollArea, Sense, Stroke, Ui};
 use git2::Repository;
 use crate::git_functions;
 
@@ -92,26 +92,32 @@ impl eframe::App for OG2App {
 pub struct OG2Tab {
     name: String,
     repo: Repository,
+    branch_tree_col_width: f32,
 }
 
 impl OG2Tab {
     fn new(name: String, repo: Repository) -> Self {
         Self {
             name,
-            repo
+            repo,
+            branch_tree_col_width: 200.0,
         }
     }
 
     fn show_branch_tree(&mut self, ui: &mut Ui) {
-        // TODO: Show branch tree.
-        Resize::default().min_width(100.0).show(ui, |ui| {
-            ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
-                ui.vertical(|ui| {
-                    ui.add(Label::new("BLURG 1asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfsdf").wrap(false));
-                    ui.label("BLURG 2");
-                });
+        ScrollArea::both().max_width(self.branch_tree_col_width).auto_shrink([false, false]).show(ui, |ui| {
+            ui.vertical(|ui| {
+                // TODO: Insert actual branches here!
+                ui.add(Label::new("BLURG 1asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfsdf").wrap(false));
+                ui.label("BLURG 2");
             });
         });
+
+        // Add draggable separator.
+        let separator_resp = ui.separator().interact(Sense::click_and_drag()).on_hover_and_drag_cursor(CursorIcon::ResizeHorizontal);
+        if separator_resp.dragged() {
+            self.branch_tree_col_width += separator_resp.drag_delta().x;
+        }
     }
 
     fn show_graph(&mut self, ui: &mut Ui) {
@@ -138,9 +144,11 @@ impl OG2Tab {
                 }
             });
 
-            ui.horizontal(|ui| {
-                self.show_branch_tree(ui);
-                self.show_graph(ui);
+            ui.with_layout(Layout::top_down(Align::Min).with_main_justify(true), |ui| {
+                ui.horizontal(|ui| {
+                    self.show_branch_tree(ui);
+                    self.show_graph(ui);
+                });
             });
         });
     }

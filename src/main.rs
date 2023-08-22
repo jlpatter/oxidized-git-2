@@ -1,7 +1,7 @@
-use crate::frontend::OG2App;
+use crate::frontend::app::OG2App;
 
-mod git_utils;
 mod frontend;
+mod backend;
 
 fn main()  -> eframe::Result<()> {
     let options = eframe::NativeOptions {

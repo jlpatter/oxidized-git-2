@@ -1,5 +1,5 @@
 use anyhow::Result;
-use egui::{Align, Color32, CursorIcon, Label, Layout, ScrollArea, Sense, Stroke, Ui};
+use egui::{Align, Color32, CursorIcon, Label, Layout, ScrollArea, SelectableLabel, Sense, Stroke, Ui};
 use git2::Repository;
 use crate::git_functions;
 
@@ -61,10 +61,11 @@ impl OG2App {
     }
 
     fn show_tabs(&mut self, ui: &mut Ui) {
-        // TODO: Figure out how to make a layout for tabs.
         ui.horizontal(|ui| {
+            let tab_width = ui.available_width() / self.tabs.len() as f32;
             for (i, tab) in self.tabs.iter().enumerate() {
-                if ui.selectable_label(self.active_tab == i, &tab.name).clicked() {
+                let selectable_label = SelectableLabel::new(self.active_tab == i, &tab.name);
+                if ui.add_sized(egui::vec2(tab_width, 20.0), selectable_label).clicked() {
                     self.active_tab = i;
                 }
             }
@@ -74,12 +75,10 @@ impl OG2App {
 
 impl eframe::App for OG2App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::TopBottomPanel::top("my_panel").show_separator_line(false).show(ctx, |ui| {
+        egui::CentralPanel::default().show(ctx, |ui| {
             self.show_starting_btns(ui);
             self.show_tabs(ui);
-        });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
             if self.tabs.len() > 0 {
                 self.tabs[self.active_tab].show(ui);
             } else {

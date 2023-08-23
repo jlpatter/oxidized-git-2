@@ -1,28 +1,31 @@
+use anyhow::Result;
 use egui::{Align, Color32, CursorIcon, Label, Layout, ScrollArea, Sense, Stroke, Ui};
 use git2::Repository;
+use crate::backend::git_utils;
 
 pub struct OG2Tab {
     pub(crate) name: String,
-    repo: Repository,
+    branch_trees: Vec<String>,
     branch_tree_col_width: f32,
 }
 
 impl OG2Tab {
-    pub fn new(name: String, repo: Repository) -> Self {
-        Self {
+    pub fn new(name: String, repo: Repository) -> Result<Self> {
+        let branch_trees = git_utils::get_branch_trees(&repo)?;
+        Ok(Self {
             name,
-            repo,
+            branch_trees,
             branch_tree_col_width: 200.0,
-        }
+        })
     }
 
     fn show_branch_tree(&mut self, ui: &mut Ui) {
         ScrollArea::both().max_width(self.branch_tree_col_width).auto_shrink([false, false]).show(ui, |ui| {
             ui.vertical(|ui| {
-                // TODO: Insert actual branches here!
-                ui.add(Label::new("BLURG 1asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfsdf").wrap(false));
-                ui.label("BLURG 2");
-            });
+                for branch in &self.branch_trees {
+                    ui.add(Label::new(branch).wrap(false));
+                }
+            })
         });
 
         // Add draggable separator.

@@ -50,7 +50,11 @@ impl OG2App {
                             }
                         }
 
-                        self.tabs.push(OG2Tab::new(name, repo));
+                        let new_tab_opt = handle_error(OG2Tab::new(name, repo));
+                        if let Some(new_tab) = new_tab_opt {
+                            self.tabs.push(new_tab);
+                            self.active_tab = self.tabs.len() - 1;
+                        }
                     }
                 }
             }

@@ -22,8 +22,9 @@ impl OG2Tab {
     fn show_branch_tree_col(&mut self, ui: &mut Ui) {
         ScrollArea::both().max_width(self.branch_tree_col_width).auto_shrink([false, false]).show(ui, |ui| {
             ui.vertical(|ui| {
-                for branch_tree in &self.branch_trees {
-                    branch_tree.show(ui);
+                for branch_tree in &mut self.branch_trees {
+                    // Starts at -1 recursion depth since the root is ""
+                    branch_tree.show(ui, -1.0);
                 }
             })
         });

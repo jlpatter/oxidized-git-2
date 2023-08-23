@@ -15,7 +15,7 @@ impl AddTabModal {
 
     pub fn show(&mut self, ctx: &Context, ui: &mut Ui) {
         if self.is_open {
-            let inner_response = Area::new("test-area").anchor(Align2::CENTER_TOP, egui::vec2(0.0, MODAL_Y_OFFSET)).show(ctx, |ui| {
+            let inner_response = Area::new("add-tab-modal").anchor(Align2::CENTER_TOP, egui::vec2(0.0, MODAL_Y_OFFSET)).show(ctx, |ui| {
                 ui.allocate_ui_with_layout(ui.max_rect().size() / 3.0, Layout::top_down(Align::Center).with_main_justify(true).with_cross_justify(true), |ui| {
                     ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
                         if ui.add(Button::new("X").fill(Color32::RED)).clicked() {

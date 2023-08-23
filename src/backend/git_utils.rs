@@ -28,13 +28,22 @@ pub fn open_repo() -> Result<Option<Repository>> {
     Ok(None)
 }
 
-pub fn get_all_ref_shorthands(repo: &Repository) -> Result<Vec<String>> {
-    let mut ref_shorthands = vec![];
+pub fn get_all_ref_shorthands(repo: &Repository) -> Result<[Vec<String>; 3]> {
+    let mut local_ref_shorthands = vec![];
+    let mut remote_ref_shorthands = vec![];
+    let mut tag_ref_shorthands = vec![];
+
     for ref_result in repo.references()? {
         let reference = ref_result?;
         let branch_shorthand = get_utf8_string(reference.shorthand(), "Branch Shorthand")?;
 
-        ref_shorthands.push(String::from(branch_shorthand));
+        if reference.is_branch() {
+            local_ref_shorthands.push(String::from(branch_shorthand));
+        } else if reference.is_remote() {
+            remote_ref_shorthands.push(String::from(branch_shorthand));
+        } else if reference.is_tag() {
+            tag_ref_shorthands.push(String::from(branch_shorthand));
+        }
     }
-    Ok(ref_shorthands)
+    Ok([local_ref_shorthands, remote_ref_shorthands, tag_ref_shorthands])
 }

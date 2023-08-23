@@ -1,7 +1,12 @@
 use anyhow::Result;
-use egui::{SelectableLabel, Ui};
+use eframe::Frame;
+use egui::{Button, Context, SelectableLabel, Ui};
 use crate::backend::git_utils;
+use crate::frontend::modals::AddTabModal;
 use crate::frontend::tab::OG2Tab;
+
+const TAB_HEIGHT: f32 = 20.0;
+const TAB_ADD_BTN_WIDTH: f32 = 20.0;
 
 fn handle_error<T>(result: Result<T>) -> Option<T> {
     match result {
@@ -17,6 +22,7 @@ fn handle_error<T>(result: Result<T>) -> Option<T> {
 pub struct OG2App {
     tabs: Vec<OG2Tab>,
     active_tab: usize,
+    add_tab_modal: AddTabModal,
 }
 
 impl OG2App {
@@ -66,27 +72,31 @@ impl OG2App {
 
     fn show_tabs(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
-            let tab_width = ui.available_width() / self.tabs.len() as f32;
+            let tab_width = ui.available_width() / self.tabs.len() as f32 - TAB_ADD_BTN_WIDTH;
             for (i, tab) in self.tabs.iter().enumerate() {
                 let selectable_label = SelectableLabel::new(self.active_tab == i, &tab.name);
-                if ui.add_sized(egui::vec2(tab_width, 20.0), selectable_label).clicked() {
+                if ui.add_sized(egui::vec2(tab_width, TAB_HEIGHT), selectable_label).clicked() {
                     self.active_tab = i;
                 }
+            }
+            if ui.add_sized(egui::vec2(TAB_ADD_BTN_WIDTH, TAB_HEIGHT), Button::new("+")).clicked() {
+                self.add_tab_modal.open();
             }
         });
     }
 }
 
 impl eframe::App for OG2App {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.show_starting_btns(ui);
-            self.show_tabs(ui);
+            self.add_tab_modal.show(ctx, ui);
 
             if self.tabs.len() > 0 {
+                self.show_tabs(ui);
                 self.tabs[self.active_tab].show(ui);
             } else {
                 // TODO: Add welcome splash screen?
+                self.show_starting_btns(ui);
             }
         });
     }

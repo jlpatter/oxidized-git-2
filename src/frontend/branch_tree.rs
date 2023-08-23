@@ -3,7 +3,7 @@ use egui::{Label, Sense, Ui};
 use git2::Repository;
 use crate::backend::git_utils;
 
-static TAB_SIZE: f32 = 20.0;
+const TAB_SIZE: f32 = 20.0;
 
 pub fn get_branch_trees(repo: &Repository) -> Result<[BranchTreeNode; 3]> {
     let ref_shorthand_types = git_utils::get_all_ref_shorthands(repo)?;

@@ -28,14 +28,13 @@ pub fn open_repo() -> Result<Option<Repository>> {
     Ok(None)
 }
 
-pub fn get_branch_trees(repo: &Repository) -> Result<Vec<String>> {
-    let mut branches: Vec<String> = vec![];
+pub fn get_all_ref_shorthands(repo: &Repository) -> Result<Vec<String>> {
+    let mut ref_shorthands = vec![];
     for ref_result in repo.references()? {
         let reference = ref_result?;
-
         let branch_shorthand = get_utf8_string(reference.shorthand(), "Branch Shorthand")?;
 
-        branches.push(String::from(branch_shorthand));
+        ref_shorthands.push(String::from(branch_shorthand));
     }
-    Ok(branches)
+    Ok(ref_shorthands)
 }

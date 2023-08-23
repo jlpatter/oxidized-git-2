@@ -1,17 +1,17 @@
 use anyhow::Result;
-use egui::{Align, Color32, CursorIcon, Label, Layout, ScrollArea, Sense, Stroke, Ui};
+use egui::{Align, Color32, CursorIcon, Layout, ScrollArea, Sense, Stroke, Ui};
 use git2::Repository;
-use crate::backend::git_utils;
+use crate::frontend::branch_tree::{BranchTreeNode, get_branch_trees};
 
 pub struct OG2Tab {
     pub(crate) name: String,
-    branch_trees: Vec<String>,
+    branch_trees: Vec<BranchTreeNode>,
     branch_tree_col_width: f32,
 }
 
 impl OG2Tab {
     pub fn new(name: String, repo: Repository) -> Result<Self> {
-        let branch_trees = git_utils::get_branch_trees(&repo)?;
+        let branch_trees = get_branch_trees(&repo)?;
         Ok(Self {
             name,
             branch_trees,
@@ -19,11 +19,11 @@ impl OG2Tab {
         })
     }
 
-    fn show_branch_tree(&mut self, ui: &mut Ui) {
+    fn show_branch_tree_col(&mut self, ui: &mut Ui) {
         ScrollArea::both().max_width(self.branch_tree_col_width).auto_shrink([false, false]).show(ui, |ui| {
             ui.vertical(|ui| {
-                for branch in &self.branch_trees {
-                    ui.add(Label::new(branch).wrap(false));
+                for branch_tree in &self.branch_trees {
+                    branch_tree.show(ui);
                 }
             })
         });
@@ -61,7 +61,7 @@ impl OG2Tab {
 
             ui.with_layout(Layout::top_down(Align::Min).with_main_justify(true), |ui| {
                 ui.horizontal(|ui| {
-                    self.show_branch_tree(ui);
+                    self.show_branch_tree_col(ui);
                     self.show_graph(ui);
                 });
             });

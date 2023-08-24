@@ -36,7 +36,13 @@ impl OG2App {
         }
     }
 
-    fn show_starting_btns(&mut self, ui: &mut Ui) {
+    fn show_modals(&mut self, ctx: &Context, ui: &mut Ui) {
+        self.error_modal.show(ctx, ui);
+        let add_tab_modal_res = self.add_tab_modal.show(ctx, ui, &mut self.tabs, &mut self.active_tab);
+        self.handle_error(add_tab_modal_res);
+    }
+
+    fn show_welcome_btns(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
             if ui.button("Init").clicked() {
                 // TODO: Implement Init
@@ -51,7 +57,7 @@ impl OG2App {
         });
     }
 
-    fn show_tabs(&mut self, ui: &mut Ui) {
+    fn show_tab_btns(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
             let tab_width = ui.available_width() / self.tabs.len() as f32 - TAB_ADD_BTN_WIDTH;
             for (i, tab) in self.tabs.iter().enumerate() {
@@ -70,16 +76,14 @@ impl OG2App {
 impl eframe::App for OG2App {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.error_modal.show(ctx, ui);
-            let add_tab_modal_res = self.add_tab_modal.show(ctx, ui, &mut self.tabs, &mut self.active_tab);
-            self.handle_error(add_tab_modal_res);
+            self.show_modals(ctx, ui);
 
             if self.tabs.len() > 0 {
-                self.show_tabs(ui);
+                self.show_tab_btns(ui);
                 self.tabs[self.active_tab].show(ui);
             } else {
                 // TODO: Add welcome splash screen?
-                self.show_starting_btns(ui);
+                self.show_welcome_btns(ui);
             }
         });
     }

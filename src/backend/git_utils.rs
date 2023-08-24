@@ -11,7 +11,7 @@ fn get_utf8_string<'a, 'b>(value: Option<&'a str>, str_name_type: &'b str) -> Re
     }
 }
 
-pub fn open_repo() -> Result<Option<Repository>> {
+pub fn open_repo() -> Result<Option<(String, Repository)>> {
     let start_dir = match UserDirs::new() {
         Some(ud) => PathBuf::from(ud.home_dir()),
         None => PathBuf::from("/"),
@@ -20,8 +20,16 @@ pub fn open_repo() -> Result<Option<Repository>> {
         .set_directory(start_dir)
         .pick_folder();
     if let Some(pf) = folder {
+        // Get the name of the repo from the path.
+        let mut name = String::from("(Invalid UTF-8 in Name)");
+        if let Some(os_s) = pf.file_name() {
+            if let Some(s) = os_s.to_str() {
+                name = String::from(s);
+            }
+        }
+
         match Repository::open(pf) {
-            Ok(repo) => return Ok(Some(repo)),
+            Ok(repo) => return Ok(Some((name, repo))),
             Err(e) => bail!(e),
         }
     }

@@ -1,9 +1,9 @@
 use anyhow::Result;
 use eframe::Frame;
 use egui::{Button, Context, SelectableLabel, Ui};
-use crate::backend::git_utils;
 use crate::frontend::modals::AddTabModal;
 use crate::frontend::tab::OG2Tab;
+use crate::frontend::utils;
 
 const TAB_HEIGHT: f32 = 20.0;
 const TAB_ADD_BTN_WIDTH: f32 = 20.0;
@@ -40,29 +40,7 @@ impl OG2App {
                 // TODO: Implement Init
             }
             if ui.button("Open").clicked() {
-                let repo_opt_opt = handle_error(git_utils::open_repo());
-                // If it didn't throw an error
-                if let Some(repo_opt) = repo_opt_opt {
-                    // If a repo was actually opened
-                    if let Some(repo) = repo_opt {
-
-                        let mut name = String::from("(None)");
-                        let repo_path = repo.path();
-                        if let Some(repo_path_root) = repo_path.parent() {
-                            if let Some(os_s) = repo_path_root.file_name() {
-                                if let Some(s) = os_s.to_str() {
-                                    name = String::from(s);
-                                }
-                            }
-                        }
-
-                        let new_tab_opt = handle_error(OG2Tab::new(name, repo));
-                        if let Some(new_tab) = new_tab_opt {
-                            self.tabs.push(new_tab);
-                            self.active_tab = self.tabs.len() - 1;
-                        }
-                    }
-                }
+                handle_error(utils::open_repo_as_tab(&mut self.tabs, &mut self.active_tab));
             }
             if ui.button("Clone").clicked() {
                 // TODO: Implement Clone
@@ -89,7 +67,7 @@ impl OG2App {
 impl eframe::App for OG2App {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.add_tab_modal.show(ctx, ui);
+            handle_error(self.add_tab_modal.show(ctx, ui, &mut self.tabs, &mut self.active_tab));
 
             if self.tabs.len() > 0 {
                 self.show_tabs(ui);

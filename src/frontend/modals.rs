@@ -29,6 +29,7 @@ pub trait Modal {
 #[derive(Default)]
 pub struct ErrorModal {
     is_open: bool,
+    error_msg: String,
 }
 
 impl Modal for ErrorModal {
@@ -42,10 +43,14 @@ impl Modal for ErrorModal {
 }
 
 impl ErrorModal {
+    pub fn set_error_msg(&mut self, msg: String) {
+        self.error_msg = msg;
+    }
+
     pub fn show(&mut self, ctx: &Context, ui: &mut Ui) {
         if self.is_open {
-            self.show_in_modal(ctx, ui, |_other_self, ui| {
-                ui.label("Insert Error Here...");
+            self.show_in_modal(ctx, ui, |other_self, ui| {
+                ui.label(other_self.error_msg.clone());
             });
         }
     }

@@ -1,12 +1,14 @@
 use anyhow::Result;
-use egui::{Align, Color32, CursorIcon, Layout, ScrollArea, Sense, Stroke, Ui};
+use egui::{Align, CursorIcon, Layout, ScrollArea, Sense, Ui};
 use git2::Repository;
 use crate::frontend::branch_tree::{BranchTreeNode, get_branch_trees};
+use crate::frontend::commit_graph::CommitGraph;
 
 pub struct OG2Tab {
     pub(crate) name: String,
     branch_trees: [BranchTreeNode; 3],
     branch_tree_col_width: f32,
+    commit_graph: CommitGraph,
 }
 
 impl OG2Tab {
@@ -16,6 +18,7 @@ impl OG2Tab {
             name,
             branch_trees,
             branch_tree_col_width: 200.0,
+            commit_graph: CommitGraph::new(&repo)?,
         })
     }
 
@@ -35,16 +38,6 @@ impl OG2Tab {
         }
     }
 
-    fn show_graph(&mut self, ui: &mut Ui) {
-        // TODO: Show Graph.
-        // This is an example of how the graph could be rendered.
-        let start_position = ui.cursor().left_top();
-        let painter = ui.painter();
-        painter.line_segment([start_position + egui::vec2(10.0, 10.0), start_position + egui::vec2(10.0, 40.0)], Stroke::new(3.0, Color32::RED));
-        painter.circle_filled(start_position + egui::vec2(10.0, 10.0), 7.0, Color32::RED);
-        painter.circle_filled(start_position + egui::vec2(10.0, 40.0), 7.0, Color32::RED);
-    }
-
     pub fn show(&mut self, ui: &mut Ui) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
@@ -62,7 +55,7 @@ impl OG2Tab {
             ui.with_layout(Layout::top_down(Align::Min).with_main_justify(true), |ui| {
                 ui.horizontal(|ui| {
                     self.show_branch_tree_col(ui);
-                    self.show_graph(ui);
+                    self.commit_graph.show(ui);
                 });
             });
         });

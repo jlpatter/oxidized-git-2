@@ -1,7 +1,15 @@
 use anyhow::Result;
-use egui::{Color32, Stroke, Ui};
+use egui::{Align2, Color32, FontId, ScrollArea, Sense, Ui, Vec2};
 use git2::Repository;
 use crate::backend::git_functions::git_revwalk;
+
+const X_OFFSET: f32 = 10.0;
+const Y_OFFSET: f32 = 10.0;
+const Y_SPACING: f32 = 30.0;
+const CIRCLE_RADIUS: f32 = 7.0;
+// const LINE_STROKE_WIDTH: f32 = 3.0;
+const RECT_HEIGHT: f32 = 20.0;
+const GRAPH_COLORS: [Color32; 4] = [Color32::BLUE, Color32::GREEN, Color32::YELLOW, Color32::RED];
 
 pub struct CommitGraph {
     commit_summaries: Vec<String>,
@@ -21,13 +29,27 @@ impl CommitGraph {
     }
 
     pub fn show(&mut self, ui: &mut Ui) {
-        // This is an example of how the graph could be rendered.
-        let start_position = ui.cursor().left_top();
-        let painter = ui.painter();
+        ScrollArea::both().id_source("graph-scroll-area").auto_shrink([false, false]).show(ui, |ui| {
+            // TODO: Try this to move contents to top.
+            // ui.vertical(|ui| {
+            //
+            // });
 
-        // TODO: Iterate over commit summaries and draw graph!
-        painter.line_segment([start_position + egui::vec2(10.0, 10.0), start_position + egui::vec2(10.0, 40.0)], Stroke::new(3.0, Color32::RED));
-        painter.circle_filled(start_position + egui::vec2(10.0, 10.0), 7.0, Color32::RED);
-        painter.circle_filled(start_position + egui::vec2(10.0, 40.0), 7.0, Color32::RED);
+            // let scroll_area_height = ui.cursor().left_top().y + Y_OFFSET + self.commit_summaries.len() as f32 * (Y_SPACING + RECT_HEIGHT);
+            // ui.allocate_ui(Vec2::new(ui.available_width(), scroll_area_height), |ui| {
+            //
+            // });
+
+            let scroll_area_height = ui.cursor().left_top().y + Y_OFFSET + self.commit_summaries.len() as f32 * (Y_SPACING + RECT_HEIGHT);
+            let (response, painter) = ui.allocate_painter(Vec2::new(ui.available_width(), scroll_area_height), Sense::hover());
+            let start_position = response.rect.left_top();
+            // let painter = ui.painter();
+
+            for (i, summary) in self.commit_summaries.iter().enumerate() {
+                let circle_position = start_position + Vec2::new(X_OFFSET, Y_OFFSET + Y_SPACING * i as f32);
+                painter.circle_filled(circle_position, CIRCLE_RADIUS, GRAPH_COLORS[0]);
+                painter.text(circle_position + Vec2::new(X_OFFSET, 0.0), Align2::LEFT_CENTER, summary, FontId::default(), Color32::WHITE);
+            }
+        });
     }
 }

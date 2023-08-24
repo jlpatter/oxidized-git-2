@@ -1,5 +1,5 @@
 use anyhow::Result;
-use egui::{Align, Align2, Area, Button, Color32, Context, Layout, Rounding, Stroke, Ui};
+use egui::{Align, Align2, Area, Button, Color32, Context, Layout, Rounding, Stroke, Ui, Vec2};
 use crate::frontend::tab::OG2Tab;
 use crate::frontend::utils;
 
@@ -9,8 +9,8 @@ const MODAL_BORDER_WIDTH: f32 = 2.0;
 pub trait Modal {
     fn open(&mut self);
     fn close(&mut self);
-    fn show_in_modal<R>(&mut self, ctx: &Context, ui: &mut Ui, modal_contents: impl FnOnce(&mut Self, &mut Ui) -> R) -> R {
-        let inner_response = Area::new("add-tab-modal").anchor(Align2::CENTER_TOP, egui::vec2(0.0, MODAL_Y_OFFSET)).show(ctx, |ui| {
+    fn show_in_modal<R>(&mut self, modal_id: String, ctx: &Context, ui: &mut Ui, modal_contents: impl FnOnce(&mut Self, &mut Ui) -> R) -> R {
+        let inner_response = Area::new(modal_id).anchor(Align2::CENTER_TOP, Vec2::new(0.0, MODAL_Y_OFFSET)).show(ctx, |ui| {
             ui.allocate_ui_with_layout(ui.max_rect().size() / 3.0, Layout::top_down(Align::Center).with_main_justify(true).with_cross_justify(true), |ui| {
                 ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
                     if ui.add(Button::new("X").fill(Color32::RED)).clicked() {
@@ -49,7 +49,7 @@ impl ErrorModal {
 
     pub fn show(&mut self, ctx: &Context, ui: &mut Ui) {
         if self.is_open {
-            self.show_in_modal(ctx, ui, |other_self, ui| {
+            self.show_in_modal(String::from("error-modal"), ctx, ui, |other_self, ui| {
                 ui.label(other_self.error_msg.clone());
             });
         }
@@ -74,7 +74,7 @@ impl Modal for AddTabModal {
 impl AddTabModal {
     pub fn show(&mut self, ctx: &Context, ui: &mut Ui, tabs: &mut Vec<OG2Tab>, active_tab: &mut usize) -> Result<()> {
         if self.is_open {
-            return self.show_in_modal(ctx, ui, |inner_self, ui| -> Result<()> {
+            return self.show_in_modal(String::from("add-tab-modal"), ctx, ui, |inner_self, ui| -> Result<()> {
                 ui.label("To open a new tab, please initialize, open, or clone another repository.");
                 ui.horizontal(|ui| -> Result<()> {
                     if ui.button("Init").clicked() {

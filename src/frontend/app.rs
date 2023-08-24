@@ -1,6 +1,6 @@
 use anyhow::Result;
 use eframe::Frame;
-use egui::{Button, Context, SelectableLabel, Ui};
+use egui::{Button, Context, SelectableLabel, Ui, Vec2};
 use crate::frontend::modals::{AddTabModal, ErrorModal, Modal};
 use crate::frontend::tab::OG2Tab;
 use crate::frontend::utils;
@@ -62,11 +62,11 @@ impl OG2App {
             let tab_width = ui.available_width() / self.tabs.len() as f32 - TAB_ADD_BTN_WIDTH;
             for (i, tab) in self.tabs.iter().enumerate() {
                 let selectable_label = SelectableLabel::new(self.active_tab == i, &tab.name);
-                if ui.add_sized(egui::vec2(tab_width, TAB_HEIGHT), selectable_label).clicked() {
+                if ui.add_sized(Vec2::new(tab_width, TAB_HEIGHT), selectable_label).clicked() {
                     self.active_tab = i;
                 }
             }
-            if ui.add_sized(egui::vec2(TAB_ADD_BTN_WIDTH, TAB_HEIGHT), Button::new("+")).clicked() {
+            if ui.add_sized(Vec2::new(TAB_ADD_BTN_WIDTH, TAB_HEIGHT), Button::new("+")).clicked() {
                 self.add_tab_modal.open();
             }
         });

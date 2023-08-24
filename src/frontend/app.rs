@@ -1,7 +1,7 @@
 use anyhow::Result;
 use eframe::Frame;
 use egui::{Button, Context, SelectableLabel, Ui};
-use crate::frontend::modals::AddTabModal;
+use crate::frontend::modals::{AddTabModal, Modal};
 use crate::frontend::tab::OG2Tab;
 use crate::frontend::utils;
 

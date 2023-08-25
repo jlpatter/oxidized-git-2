@@ -2,6 +2,7 @@ use anyhow::Result;
 use git2::{Oid, Repository, Sort};
 
 pub fn git_revwalk(repo: &Repository) -> Result<Vec<Oid>> {
+    // First, we need to get the commits to start/include in the revwalk.
     let mut initial_oid_vec: Vec<Oid> = vec![];
     for branch_result in repo.branches(None)? {
         let (branch, _) = branch_result?;

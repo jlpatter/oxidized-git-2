@@ -1,15 +1,8 @@
 use std::path::PathBuf;
-use anyhow::{bail, Result};
+use anyhow::{bail, Error, Result};
 use directories::UserDirs;
 use git2::Repository;
 use rfd::FileDialog;
-
-fn get_utf8_string<'a, 'b>(value: Option<&'a str>, str_name_type: &'b str) -> Result<&'a str> {
-    match value {
-        Some(n) => Ok(n),
-        None => bail!(format!("{} uses invalid utf-8!", str_name_type)),
-    }
-}
 
 pub fn open_repo() -> Result<Option<(String, Repository)>> {
     let start_dir = match UserDirs::new() {
@@ -43,7 +36,7 @@ pub fn get_all_ref_shorthands(repo: &Repository) -> Result<[Vec<String>; 3]> {
 
     for ref_result in repo.references()? {
         let reference = ref_result?;
-        let branch_shorthand = get_utf8_string(reference.shorthand(), "Branch Shorthand")?;
+        let branch_shorthand = reference.shorthand().ok_or(Error::msg("Branch Shorthand has invalid UTF-8!"))?;
 
         if reference.is_branch() {
             local_ref_shorthands.push(String::from(branch_shorthand));

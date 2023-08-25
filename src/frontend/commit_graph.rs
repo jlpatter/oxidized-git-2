@@ -57,6 +57,8 @@ impl CommitGraph {
 
     pub fn show(&mut self, ui: &mut Ui) {
         ScrollArea::both().id_source("graph-scroll-area").auto_shrink([false, false]).show(ui, |ui| {
+            // This ui.vertical is just to keep the contents at the top of the scroll area if they're
+            // smaller than it.
             ui.vertical(|ui| {
                 let scroll_area_height = self.commits.len() as f32 * Y_SPACING;
                 let (response, painter) = ui.allocate_painter(Vec2::new(ui.available_width(), scroll_area_height), Sense::hover());

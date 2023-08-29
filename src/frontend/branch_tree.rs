@@ -28,7 +28,8 @@ pub struct BranchTreeNode {
     text: String,
     is_expanded: bool,
     children: Vec<BranchTreeNode>,
-    arrow_texture: Option<TextureHandle>,
+    right_arrow_texture: Option<TextureHandle>,
+    down_arrow_texture: Option<TextureHandle>,
 }
 
 impl BranchTreeNode {
@@ -37,14 +38,19 @@ impl BranchTreeNode {
             text,
             is_expanded,
             children: vec![],
-            arrow_texture: None,
+            right_arrow_texture: None,
+            down_arrow_texture: None,
         }
     }
 
-    fn set_arrow_image(&mut self, ctx: &Context) -> Result<()> {
-        if let None = self.arrow_texture {
-            let arrow_image = load_image_from_path(Path::new("./src/images/Arrow.png"))?;
-            self.arrow_texture = Some(ctx.load_texture("arrow-image", arrow_image, TextureOptions::default()));
+    fn set_arrow_images(&mut self, ctx: &Context) -> Result<()> {
+        if let None = self.right_arrow_texture {
+            let right_arrow_image = load_image_from_path(Path::new("./src/images/right_arrow.png"))?;
+            self.right_arrow_texture = Some(ctx.load_texture("right-arrow-image", right_arrow_image, TextureOptions::default()));
+        }
+        if let None = self.down_arrow_texture {
+            let down_arrow_image = load_image_from_path(Path::new("./src/images/down_arrow.png"))?;
+            self.down_arrow_texture = Some(ctx.load_texture("down-arrow-image", down_arrow_image, TextureOptions::default()));
         }
         Ok(())
     }
@@ -68,10 +74,10 @@ impl BranchTreeNode {
                     if i == split_shorthand.len() - 1 {
                         // TODO: This is where branch information can be passed!
                         current_tree_node.children.push(BranchTreeNode::new(String::from(shorthand_piece), false));
-                        current_tree_node.set_arrow_image(ctx)?;
+                        current_tree_node.set_arrow_images(ctx)?;
                     } else {
                         current_tree_node.children.push(BranchTreeNode::new(String::from(shorthand_piece), false));
-                        current_tree_node.set_arrow_image(ctx)?;
+                        current_tree_node.set_arrow_images(ctx)?;
                     }
                     let last_index = current_tree_node.children.len() - 1;
                     current_tree_node = &mut current_tree_node.children[last_index];
@@ -84,8 +90,14 @@ impl BranchTreeNode {
     pub fn show(&mut self, ui: &mut Ui, rec_depth: f32) {
         ui.horizontal(|ui| {
             ui.add_space(rec_depth * TAB_SIZE);
-            if let Some(arrow_texture) = &self.arrow_texture {
-                ui.image(arrow_texture, arrow_texture.size_vec2());
+            if self.is_expanded {
+                if let Some(down_arrow_texture) = &self.down_arrow_texture {
+                    ui.image(down_arrow_texture, down_arrow_texture.size_vec2());
+                }
+            } else {
+                if let Some(right_arrow_texture) = &self.right_arrow_texture {
+                    ui.image(right_arrow_texture, right_arrow_texture.size_vec2());
+                }
             }
             let resp = ui.add(Label::new(self.text.clone()).wrap(false)).interact(Sense::click());
             if resp.clicked() {

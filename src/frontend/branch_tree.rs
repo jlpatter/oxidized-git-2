@@ -1,6 +1,6 @@
 use std::path::Path;
 use anyhow::Result;
-use egui::{Context, Label, Sense, TextureHandle, TextureOptions, Ui};
+use egui::{Context, Image, Label, Sense, TextureHandle, TextureOptions, Ui};
 use git2::Repository;
 use crate::backend::git_utils;
 use crate::frontend::utils::load_image_from_path;
@@ -90,17 +90,28 @@ impl BranchTreeNode {
     pub fn show(&mut self, ui: &mut Ui, rec_depth: f32) {
         ui.horizontal(|ui| {
             ui.add_space(rec_depth * TAB_SIZE);
+            let mut row_was_clicked = false;
+
+            // Add arrows next to collapsables.
             if self.is_expanded {
                 if let Some(down_arrow_texture) = &self.down_arrow_texture {
-                    ui.image(down_arrow_texture, down_arrow_texture.size_vec2());
+                    if ui.add(Image::new(down_arrow_texture, down_arrow_texture.size_vec2()).sense(Sense::click())).clicked() {
+                        row_was_clicked = true;
+                    }
                 }
             } else {
                 if let Some(right_arrow_texture) = &self.right_arrow_texture {
-                    ui.image(right_arrow_texture, right_arrow_texture.size_vec2());
+                    if ui.add(Image::new(right_arrow_texture, right_arrow_texture.size_vec2()).sense(Sense::click())).clicked() {
+                        row_was_clicked = true;
+                    }
                 }
             }
-            let resp = ui.add(Label::new(self.text.clone()).wrap(false)).interact(Sense::click());
-            if resp.clicked() {
+
+            // Add text.
+            if ui.add(Label::new(self.text.clone()).wrap(false)).interact(Sense::click()).clicked() {
+                row_was_clicked = true;
+            }
+            if row_was_clicked {
                 self.is_expanded = !self.is_expanded;
             }
         });

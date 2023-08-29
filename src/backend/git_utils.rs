@@ -40,7 +40,7 @@ pub fn get_all_ref_shorthands(repo: &Repository) -> Result<[Vec<String>; 3]> {
 
         if reference.is_branch() {
             local_ref_shorthands.push(String::from(branch_shorthand));
-        } else if reference.is_remote() && !branch_shorthand.ends_with("HEAD") {
+        } else if reference.is_remote() && !branch_shorthand.ends_with("/HEAD") {
             remote_ref_shorthands.push(String::from(branch_shorthand));
         } else if reference.is_tag() {
             tag_ref_shorthands.push(String::from(branch_shorthand));

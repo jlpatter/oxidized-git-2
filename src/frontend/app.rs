@@ -36,9 +36,9 @@ impl OG2App {
         }
     }
 
-    fn show_modals(&mut self, ctx: &Context, ui: &mut Ui) {
-        self.error_modal.show(ctx, ui);
-        let add_tab_modal_res = self.add_tab_modal.show(ctx, ui, &mut self.tabs, &mut self.active_tab);
+    fn show_modals(&mut self, ui: &mut Ui) {
+        self.error_modal.show(ui);
+        let add_tab_modal_res = self.add_tab_modal.show(ui, &mut self.tabs, &mut self.active_tab);
         self.handle_error(add_tab_modal_res);
     }
 
@@ -48,7 +48,7 @@ impl OG2App {
                 // TODO: Implement Init
             }
             if ui.button("Open").clicked() {
-                let res = utils::open_repo_as_tab(&mut self.tabs, &mut self.active_tab);
+                let res = utils::open_repo_as_tab(&mut self.tabs, &mut self.active_tab, ui.ctx());
                 self.handle_error(res);
             }
             if ui.button("Clone").clicked() {
@@ -76,7 +76,7 @@ impl OG2App {
 impl eframe::App for OG2App {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.show_modals(ctx, ui);
+            self.show_modals(ui);
 
             if self.tabs.len() > 0 {
                 self.show_tab_btns(ui);

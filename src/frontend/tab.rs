@@ -1,5 +1,5 @@
 use anyhow::Result;
-use egui::{Align, CursorIcon, Layout, ScrollArea, Sense, Ui};
+use egui::{Align, Context, CursorIcon, Layout, ScrollArea, Sense, Ui};
 use git2::Repository;
 use crate::frontend::branch_tree::{BranchTreeNode, get_branch_trees};
 use crate::frontend::commit_graph::CommitGraph;
@@ -12,8 +12,8 @@ pub struct OG2Tab {
 }
 
 impl OG2Tab {
-    pub fn new(name: String, repo: Repository) -> Result<Self> {
-        let branch_trees = get_branch_trees(&repo)?;
+    pub fn new(name: String, repo: Repository, ctx: &Context) -> Result<Self> {
+        let branch_trees = get_branch_trees(&repo, ctx)?;
         Ok(Self {
             name,
             branch_trees,

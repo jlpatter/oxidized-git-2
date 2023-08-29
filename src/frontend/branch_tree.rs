@@ -1,11 +1,13 @@
+use std::path::Path;
 use anyhow::Result;
-use egui::{Label, Sense, Ui};
+use egui::{Context, Label, Sense, TextureHandle, TextureOptions, Ui};
 use git2::Repository;
 use crate::backend::git_utils;
+use crate::frontend::utils::load_image_from_path;
 
 const TAB_SIZE: f32 = 20.0;
 
-pub fn get_branch_trees(repo: &Repository) -> Result<[BranchTreeNode; 3]> {
+pub fn get_branch_trees(repo: &Repository, ctx: &Context) -> Result<[BranchTreeNode; 3]> {
     let ref_shorthand_types = git_utils::get_all_ref_shorthands(repo)?;
 
     let mut branch_trees = [
@@ -16,7 +18,7 @@ pub fn get_branch_trees(repo: &Repository) -> Result<[BranchTreeNode; 3]> {
 
     for (i, ref_shorthands) in ref_shorthand_types.iter().enumerate() {
         for ref_shorthand in ref_shorthands {
-            branch_trees[i].insert_shorthand(ref_shorthand.clone());
+            branch_trees[i].insert_shorthand(ref_shorthand.clone(), ctx)?;
         }
     }
     Ok(branch_trees)
@@ -26,6 +28,7 @@ pub struct BranchTreeNode {
     text: String,
     is_expanded: bool,
     children: Vec<BranchTreeNode>,
+    arrow_texture: Option<TextureHandle>,
 }
 
 impl BranchTreeNode {
@@ -34,10 +37,19 @@ impl BranchTreeNode {
             text,
             is_expanded,
             children: vec![],
+            arrow_texture: None,
         }
     }
 
-    pub fn insert_shorthand(&mut self, branch_shorthand: String) {
+    fn set_arrow_image(&mut self, ctx: &Context) -> Result<()> {
+        if let None = self.arrow_texture {
+            let arrow_image = load_image_from_path(Path::new("./src/images/Arrow.png"))?;
+            self.arrow_texture = Some(ctx.load_texture("arrow-image", arrow_image, TextureOptions::default()));
+        }
+        Ok(())
+    }
+
+    pub fn insert_shorthand(&mut self, branch_shorthand: String, ctx: &Context) -> Result<()> {
         // NOTE: This function should only be called on a root node!
         let mut current_tree_node = self;
 
@@ -56,19 +68,25 @@ impl BranchTreeNode {
                     if i == split_shorthand.len() - 1 {
                         // TODO: This is where branch information can be passed!
                         current_tree_node.children.push(BranchTreeNode::new(String::from(shorthand_piece), false));
+                        current_tree_node.set_arrow_image(ctx)?;
                     } else {
                         current_tree_node.children.push(BranchTreeNode::new(String::from(shorthand_piece), false));
+                        current_tree_node.set_arrow_image(ctx)?;
                     }
                     let last_index = current_tree_node.children.len() - 1;
                     current_tree_node = &mut current_tree_node.children[last_index];
                 },
             };
         }
+        Ok(())
     }
 
     pub fn show(&mut self, ui: &mut Ui, rec_depth: f32) {
         ui.horizontal(|ui| {
             ui.add_space(rec_depth * TAB_SIZE);
+            if let Some(arrow_texture) = &self.arrow_texture {
+                ui.image(arrow_texture, arrow_texture.size_vec2());
+            }
             let resp = ui.add(Label::new(self.text.clone()).wrap(false)).interact(Sense::click());
             if resp.clicked() {
                 self.is_expanded = !self.is_expanded;

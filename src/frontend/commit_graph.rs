@@ -1,5 +1,8 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 use anyhow::{Error, Result};
-use egui::{Align2, Color32, FontId, Painter, Pos2, ScrollArea, Sense, Ui, Vec2};
+use egui::{Align2, Color32, FontId, Painter, Pos2, ScrollArea, Sense, Stroke, Ui, Vec2};
 use git2::{Oid, Repository};
 use crate::backend::git_functions::git_revwalk;
 
@@ -8,7 +11,7 @@ const X_SPACING: f32 = 15.0;
 const Y_OFFSET: f32 = 10.0;
 const Y_SPACING: f32 = 30.0;
 const CIRCLE_RADIUS: f32 = 7.0;
-// const LINE_STROKE_WIDTH: f32 = 3.0;
+const LINE_STROKE_WIDTH: f32 = 3.0;
 const GRAPH_COLORS: [Color32; 4] = [Color32::BLUE, Color32::GREEN, Color32::YELLOW, Color32::RED];
 const VISIBLE_SCROLL_AREA_PADDING: usize = 10;
 
@@ -17,6 +20,8 @@ struct Commit {
     x: usize,
     y: usize,
     summary: String,
+    parents: Vec<Rc<RefCell<Commit>>>,
+    parent_oids: Vec<Oid>,
 }
 
 impl Commit {
@@ -26,18 +31,40 @@ impl Commit {
             x: 0,
             y: i,
             summary: String::from(commit.summary().ok_or(Error::msg("Commit summary has invalid UTF-8!"))?),
+            parents: vec![],
+            parent_oids: commit.parents().map(|p| p.id()).collect(),
         })
     }
 
+    fn get_pixel_x(&self) -> f32 {
+        X_OFFSET + X_SPACING * self.x as f32
+    }
+
+    fn get_pixel_y(&self) -> f32 {
+        Y_OFFSET + Y_SPACING * self.y as f32
+    }
+
+    fn get_circle_position(&self, scroll_area_top_left: Pos2) -> Pos2 {
+        scroll_area_top_left + Vec2::new(self.get_pixel_x(), self.get_pixel_y())
+    }
+
+    fn get_color(&self) -> Color32 {
+        GRAPH_COLORS[self.x % GRAPH_COLORS.len()]
+    }
+
     pub fn show(&self, painter: &Painter, scroll_area_top_left: Pos2) {
-        let circle_position = scroll_area_top_left + Vec2::new(X_OFFSET + X_SPACING * self.x as f32, Y_OFFSET + Y_SPACING * self.y as f32);
-        painter.circle_filled(circle_position, CIRCLE_RADIUS, GRAPH_COLORS[0]);
+        let circle_position = self.get_circle_position(scroll_area_top_left);
+        painter.circle_filled(circle_position, CIRCLE_RADIUS, self.get_color());
+        for parent_rc in &self.parents {
+            let parent = parent_rc.borrow();
+            painter.line_segment([circle_position, parent.get_circle_position(scroll_area_top_left)], Stroke::new(LINE_STROKE_WIDTH, self.get_color()))
+        }
         painter.text(circle_position + Vec2::new(X_OFFSET, 0.0), Align2::LEFT_CENTER, self.summary.clone(), FontId::default(), Color32::WHITE);
     }
 }
 
 pub struct CommitGraph {
-    commits: Vec<Commit>,
+    commits: Vec<Rc<RefCell<Commit>>>,
 }
 
 impl CommitGraph {
@@ -47,11 +74,27 @@ impl CommitGraph {
         })
     }
 
-    fn get_commits(repo: &Repository) -> Result<Vec<Commit>> {
+    fn get_commits(repo: &Repository) -> Result<Vec<Rc<RefCell<Commit>>>> {
+        // Loop through once to get all the commits and create a mapping to get the parents later.
         let oid_vec = git_revwalk(repo)?;
         let mut commits = vec![];
+        let mut commit_map: HashMap<Oid, Rc<RefCell<Commit>>> = HashMap::new();
         for (i, oid) in oid_vec.iter().enumerate() {
-            commits.push(Commit::new(repo, i, *oid)?);
+            let commit_rc = Rc::new(RefCell::new(Commit::new(repo, i, *oid)?));
+            commit_map.insert(*oid, commit_rc.clone());
+            commits.push(commit_rc);
+        }
+
+        // Now, loop through a second time to set the parents.
+        for commit_rc in &commits {
+            let mut commit = commit_rc.borrow_mut();
+            let mut parent_commits = vec![];
+            for parent_oid in &commit.parent_oids {
+                if let Some(parent_commit) = commit_map.get(parent_oid) {
+                    parent_commits.push(parent_commit.clone());
+                }
+            }
+            commit.parents = parent_commits;
         }
         Ok(commits)
     }
@@ -72,7 +115,7 @@ impl CommitGraph {
                 let visible_area_bottom_index = (((scroll_position + visible_area_height - Y_OFFSET) / Y_SPACING) as usize + VISIBLE_SCROLL_AREA_PADDING).min(self.commits.len());
 
                 for i in visible_area_top_index..visible_area_bottom_index {
-                    self.commits[i].show(&painter, scroll_area_top_left);
+                    self.commits[i].borrow().show(&painter, scroll_area_top_left);
                 }
             });
         });

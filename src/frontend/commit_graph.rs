@@ -17,22 +17,21 @@ const VISIBLE_SCROLL_AREA_PADDING: usize = 10;
 
 struct Commit {
     // NOTE: X and Y here are not pixel coordinates, they act more like indexes of valid 'positions'.
+    oid: Oid,
     x: usize,
     y: usize,
     summary: String,
     parents: Vec<Rc<RefCell<Commit>>>,
-    parent_oids: Vec<Oid>,
 }
 
 impl Commit {
-    pub fn new(repo: &Repository, i: usize, oid: Oid) -> Result<Self> {
-        let commit = repo.find_commit(oid)?;
+    pub fn new(commit: git2::Commit, i: usize) -> Result<Self> {
         Ok(Self {
+            oid: commit.id(),
             x: 0,
             y: i,
             summary: String::from(commit.summary().ok_or(Error::msg("Commit summary has invalid UTF-8!"))?),
             parents: vec![],
-            parent_oids: commit.parents().map(|p| p.id()).collect(),
         })
     }
 
@@ -78,9 +77,13 @@ impl CommitGraph {
         // Loop through once to get all the commits and create a mapping to get the parents later.
         let oid_vec = git_revwalk(repo)?;
         let mut commits = vec![];
+        // commit_map and commit_parent_oid_map are just used to get the parents within this fn.
         let mut commit_map: HashMap<Oid, Rc<RefCell<Commit>>> = HashMap::new();
+        let mut commit_parent_oid_map: HashMap<Oid, Vec<Oid>> = HashMap::new();
         for (i, oid) in oid_vec.iter().enumerate() {
-            let commit_rc = Rc::new(RefCell::new(Commit::new(repo, i, *oid)?));
+            let git_commit = repo.find_commit(*oid)?;
+            commit_parent_oid_map.insert(*oid, git_commit.parents().map(|p| p.id()).collect());
+            let commit_rc = Rc::new(RefCell::new(Commit::new(git_commit, i)?));
             commit_map.insert(*oid, commit_rc.clone());
             commits.push(commit_rc);
         }
@@ -89,9 +92,11 @@ impl CommitGraph {
         for commit_rc in &commits {
             let mut commit = commit_rc.borrow_mut();
             let mut parent_commits = vec![];
-            for parent_oid in &commit.parent_oids {
-                if let Some(parent_commit) = commit_map.get(parent_oid) {
-                    parent_commits.push(parent_commit.clone());
+            if let Some(parent_oids) = commit_parent_oid_map.get(&commit.oid) {
+                for parent_oid in parent_oids {
+                    if let Some(parent_commit) = commit_map.get(parent_oid) {
+                        parent_commits.push(parent_commit.clone());
+                    }
                 }
             }
             commit.parents = parent_commits;

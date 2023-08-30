@@ -1,5 +1,5 @@
 use anyhow::Result;
-use egui::{Align, Align2, Area, Button, Color32, Layout, Rounding, Stroke, Ui, Vec2};
+use egui::{Align, Align2, Area, Button, Color32, Frame, Layout, Stroke, Ui, Vec2};
 use crate::frontend::tab::OG2Tab;
 use crate::frontend::utils;
 
@@ -10,19 +10,18 @@ pub trait Modal {
     fn open(&mut self);
     fn close(&mut self);
     fn show_in_modal<R>(&mut self, modal_id: String, ui: &mut Ui, modal_contents: impl FnOnce(&mut Self, &mut Ui) -> R) -> R {
-        let inner_response = Area::new(modal_id).anchor(Align2::CENTER_TOP, Vec2::new(0.0, MODAL_Y_OFFSET)).show(ui.ctx(), |ui| {
-            ui.allocate_ui_with_layout(ui.max_rect().size() / 3.0, Layout::top_down(Align::Center).with_main_justify(true).with_cross_justify(true), |ui| {
-                ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
-                    if ui.add(Button::new("X").fill(Color32::RED)).clicked() {
-                        self.close();
-                    }
-                });
-                modal_contents(self, ui)
+        Area::new(modal_id).anchor(Align2::CENTER_TOP, Vec2::new(0.0, MODAL_Y_OFFSET)).show(ui.ctx(), |ui| {
+            Frame::popup(&*ui.ctx().style()).fill(Color32::BLACK).stroke(Stroke::new(MODAL_BORDER_WIDTH, Color32::WHITE)).show(ui, |ui| {
+                ui.allocate_ui_with_layout(ui.max_rect().size() / 3.0, Layout::top_down(Align::Center).with_main_justify(true).with_cross_justify(true), |ui| {
+                    ui.with_layout(Layout::right_to_left(Align::TOP), |ui| {
+                        if ui.add(Button::new("X").fill(Color32::RED)).clicked() {
+                            self.close();
+                        }
+                    });
+                    modal_contents(self, ui)
+                }).inner
             }).inner
-        });
-        let painter = ui.painter();
-        painter.rect(inner_response.response.rect, Rounding::default(), Color32::BLACK, Stroke::new(MODAL_BORDER_WIDTH, Color32::WHITE));
-        inner_response.inner
+        }).inner
     }
 }
 

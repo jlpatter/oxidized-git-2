@@ -10,6 +10,7 @@ const Y_SPACING: f32 = 30.0;
 const CIRCLE_RADIUS: f32 = 7.0;
 // const LINE_STROKE_WIDTH: f32 = 3.0;
 const GRAPH_COLORS: [Color32; 4] = [Color32::BLUE, Color32::GREEN, Color32::YELLOW, Color32::RED];
+const VISIBLE_SCROLL_AREA_PADDING: usize = 10;
 
 struct Commit {
     // NOTE: X and Y here are not pixel coordinates, they act more like indexes of valid 'positions'.
@@ -56,16 +57,20 @@ impl CommitGraph {
     }
 
     pub fn show(&mut self, ui: &mut Ui) {
+        let visible_scroll_area_height = ui.min_rect().max.y - ui.min_rect().min.y;
         ScrollArea::both().id_source("graph-scroll-area").auto_shrink([false, false]).show(ui, |ui| {
             // This ui.vertical is just to keep the contents at the top of the scroll area if they're
             // smaller than it.
             ui.vertical(|ui| {
-                let scroll_area_height = self.commits.len() as f32 * Y_SPACING;
-                let (response, painter) = ui.allocate_painter(Vec2::new(ui.available_width(), scroll_area_height), Sense::hover());
+                let graph_height = self.commits.len() as f32 * Y_SPACING;
+                let (response, painter) = ui.allocate_painter(Vec2::new(ui.available_width(), graph_height), Sense::hover());
                 let start_position = response.rect.left_top();
 
-                for commit in &self.commits {
-                    commit.show(&painter, start_position);
+                let visible_scroll_area_top_index = (((start_position.y - Y_OFFSET) / Y_SPACING) as isize - VISIBLE_SCROLL_AREA_PADDING as isize).max(0) as usize;
+                let visible_scroll_area_bottom_index = (((start_position.y + visible_scroll_area_height - Y_OFFSET) / Y_SPACING) as usize + VISIBLE_SCROLL_AREA_PADDING).min(self.commits.len());
+
+                for i in visible_scroll_area_top_index..visible_scroll_area_bottom_index {
+                    self.commits[i].show(&painter, start_position);
                 }
             });
         });

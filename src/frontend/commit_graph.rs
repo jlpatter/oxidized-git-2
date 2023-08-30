@@ -29,8 +29,8 @@ impl Commit {
         })
     }
 
-    pub fn show(&self, painter: &Painter, start_position: Pos2) {
-        let circle_position = start_position + Vec2::new(X_OFFSET + X_SPACING * self.x as f32, Y_OFFSET + Y_SPACING * self.y as f32);
+    pub fn show(&self, painter: &Painter, scroll_area_top_left: Pos2) {
+        let circle_position = scroll_area_top_left + Vec2::new(X_OFFSET + X_SPACING * self.x as f32, Y_OFFSET + Y_SPACING * self.y as f32);
         painter.circle_filled(circle_position, CIRCLE_RADIUS, GRAPH_COLORS[0]);
         painter.text(circle_position + Vec2::new(X_OFFSET, 0.0), Align2::LEFT_CENTER, self.summary.clone(), FontId::default(), Color32::WHITE);
     }
@@ -57,20 +57,22 @@ impl CommitGraph {
     }
 
     pub fn show(&mut self, ui: &mut Ui) {
-        let visible_scroll_area_height = ui.min_rect().max.y - ui.min_rect().min.y;
+        let visible_area_top = ui.min_rect().min.y;
+        let visible_area_height = ui.min_rect().max.y - visible_area_top;
         ScrollArea::both().id_source("graph-scroll-area").auto_shrink([false, false]).show(ui, |ui| {
             // This ui.vertical is just to keep the contents at the top of the scroll area if they're
             // smaller than it.
             ui.vertical(|ui| {
                 let graph_height = self.commits.len() as f32 * Y_SPACING;
                 let (response, painter) = ui.allocate_painter(Vec2::new(ui.available_width(), graph_height), Sense::hover());
-                let start_position = response.rect.left_top();
+                let scroll_area_top_left = response.rect.left_top();
 
-                let visible_scroll_area_top_index = (((start_position.y - Y_OFFSET) / Y_SPACING) as isize - VISIBLE_SCROLL_AREA_PADDING as isize).max(0) as usize;
-                let visible_scroll_area_bottom_index = (((start_position.y + visible_scroll_area_height - Y_OFFSET) / Y_SPACING) as usize + VISIBLE_SCROLL_AREA_PADDING).min(self.commits.len());
+                let scroll_position = visible_area_top - scroll_area_top_left.y;
+                let visible_area_top_index = (((scroll_position - Y_OFFSET) / Y_SPACING) as isize - VISIBLE_SCROLL_AREA_PADDING as isize).max(0) as usize;
+                let visible_area_bottom_index = (((scroll_position + visible_area_height - Y_OFFSET) / Y_SPACING) as usize + VISIBLE_SCROLL_AREA_PADDING).min(self.commits.len());
 
-                for i in visible_scroll_area_top_index..visible_scroll_area_bottom_index {
-                    self.commits[i].show(&painter, start_position);
+                for i in visible_area_top_index..visible_area_bottom_index {
+                    self.commits[i].show(&painter, scroll_area_top_left);
                 }
             });
         });

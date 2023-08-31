@@ -16,9 +16,15 @@ pub fn get_branch_trees(repo: &Repository, ctx: &Context) -> Result<[BranchTreeN
         BranchTreeNode::new(String::from("Tags"), true)
     ];
 
+    // Load the arrow images here so they can be cheaply cloned.
+    let right_arrow_image = load_image_from_path(Path::new("./images/right_arrow.png"))?;
+    let right_arrow_texture = ctx.load_texture("right-arrow-image", right_arrow_image, TextureOptions::default());
+    let down_arrow_image = load_image_from_path(Path::new("./images/down_arrow.png"))?;
+    let down_arrow_texture = ctx.load_texture("down-arrow-image", down_arrow_image, TextureOptions::default());
+
     for (i, ref_shorthands) in ref_shorthand_types.iter().enumerate() {
         for ref_shorthand in ref_shorthands {
-            branch_trees[i].insert_shorthand(ref_shorthand.clone(), ctx)?;
+            branch_trees[i].insert_shorthand(ref_shorthand.clone(), &right_arrow_texture, &down_arrow_texture)?;
         }
     }
     Ok(branch_trees)
@@ -43,19 +49,16 @@ impl BranchTreeNode {
         }
     }
 
-    fn set_arrow_images(&mut self, ctx: &Context) -> Result<()> {
-        if let None = self.right_arrow_texture {
-            let right_arrow_image = load_image_from_path(Path::new("./src/images/right_arrow.png"))?;
-            self.right_arrow_texture = Some(ctx.load_texture("right-arrow-image", right_arrow_image, TextureOptions::default()));
+    fn set_arrow_images(&mut self, right_arrow_texture: &TextureHandle, down_arrow_texture: &TextureHandle) {
+        if self.right_arrow_texture == None {
+            self.right_arrow_texture = Some(right_arrow_texture.clone());
         }
-        if let None = self.down_arrow_texture {
-            let down_arrow_image = load_image_from_path(Path::new("./src/images/down_arrow.png"))?;
-            self.down_arrow_texture = Some(ctx.load_texture("down-arrow-image", down_arrow_image, TextureOptions::default()));
+        if self.down_arrow_texture == None {
+            self.down_arrow_texture = Some(down_arrow_texture.clone());
         }
-        Ok(())
     }
 
-    pub fn insert_shorthand(&mut self, branch_shorthand: String, ctx: &Context) -> Result<()> {
+    pub fn insert_shorthand(&mut self, branch_shorthand: String, right_arrow_texture: &TextureHandle, down_arrow_texture: &TextureHandle) -> Result<()> {
         // NOTE: This function should only be called on a root node!
         let mut current_tree_node = self;
 
@@ -74,10 +77,10 @@ impl BranchTreeNode {
                     if i == split_shorthand.len() - 1 {
                         // TODO: This is where branch information can be passed!
                         current_tree_node.children.push(BranchTreeNode::new(String::from(shorthand_piece), false));
-                        current_tree_node.set_arrow_images(ctx)?;
+                        current_tree_node.set_arrow_images(right_arrow_texture, down_arrow_texture);
                     } else {
                         current_tree_node.children.push(BranchTreeNode::new(String::from(shorthand_piece), false));
-                        current_tree_node.set_arrow_images(ctx)?;
+                        current_tree_node.set_arrow_images(right_arrow_texture, down_arrow_texture);
                     }
                     let last_index = current_tree_node.children.len() - 1;
                     current_tree_node = &mut current_tree_node.children[last_index];

@@ -88,18 +88,28 @@ impl GraphRow {
 struct Line {
     start: LocationIndex,
     end: LocationIndex,
+    color: Color32,
 }
 
 impl Line {
     pub fn new(start_x: usize, start_y: usize, end_x: usize, end_y: usize) -> Self {
+        let start = LocationIndex::new(start_x, start_y);
+        let end = LocationIndex::new(end_x, end_y);
+        let color;
+        if start_x < end_x {
+            color = end.get_color();
+        } else {
+            color = start.get_color();
+        }
         Self {
-            start: LocationIndex::new(start_x, start_y),
-            end: LocationIndex::new(end_x, end_y),
+            start,
+            end,
+            color,
         }
     }
 
     pub fn show(&self, painter: &Painter, scroll_area_top_left: Pos2) {
-        painter.line_segment([self.start.get_relative_pos2(scroll_area_top_left), self.end.get_relative_pos2(scroll_area_top_left)], Stroke::new(LINE_STROKE_WIDTH, self.start.get_color()));
+        painter.line_segment([self.start.get_relative_pos2(scroll_area_top_left), self.end.get_relative_pos2(scroll_area_top_left)], Stroke::new(LINE_STROKE_WIDTH, self.color));
     }
 }
 

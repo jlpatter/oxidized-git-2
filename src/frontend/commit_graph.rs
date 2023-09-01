@@ -66,24 +66,6 @@ impl GraphRow {
         })
     }
 
-    pub fn set_summary_location_to_right(&mut self) {
-        let mut max_x: usize = 0;
-        let max_line_x_opt = self.lines.iter().map(|line| {
-            line.start.x
-        }).max();
-        if let Some(max_line_x) = max_line_x_opt {
-            max_x = max_line_x;
-        }
-        max_x = max_x.max(self.circle_location.x);
-        self.summary_location.x = max_x + 1;
-    }
-
-    pub fn set_summary_location_if_larger(&mut self, new_x: usize) {
-        if new_x > self.summary_location.x {
-            self.summary_location.x = new_x;
-        }
-    }
-
     pub fn show(&self, painter: &Painter, scroll_area_top_left: Pos2) {
         for line in &self.lines {
             line.show(painter, scroll_area_top_left);
@@ -190,30 +172,32 @@ impl CommitGraph {
             }
         }
 
-        // Loop through after everything's set in order to set summary text positions.
-        // TODO: This is still broken :(
+        // Loop through after everything's set in order to properly occupy spaces by curved lines just for summary text positions.
         for graph_row_rc in &graph_rows {
-            let mut graph_row = graph_row_rc.borrow_mut();
-            graph_row.set_summary_location_to_right();
-
+            let graph_row = graph_row_rc.borrow();
             // This is to set summary text positions next to curved lines.
             if let Some(parent_oids) = commit_parent_oid_map.get(&graph_row.oid) {
                 for parent_oid in parent_oids {
                     if let Some(parent_commit_rc) = commit_map.get(parent_oid) {
-                        let mut parent_graph_row = parent_commit_rc.borrow_mut();
+                        let parent_graph_row = parent_commit_rc.borrow();
                         if graph_row.circle_location.x < parent_graph_row.circle_location.x {
-                            graph_row.set_summary_location_if_larger(parent_graph_row.circle_location.x + 1);
+                            let x_val = parent_graph_row.circle_location.x;
+                            occupied_locations_table[graph_row.circle_location.y].push(x_val);
                         } else if graph_row.circle_location.x > parent_graph_row.circle_location.x {
-                            parent_graph_row.set_summary_location_if_larger(graph_row.circle_location.x + 1);
+                            let x_val = graph_row.circle_location.x;
+                            occupied_locations_table[parent_graph_row.circle_location.y].push(x_val);
                         }
                     }
                 }
             }
         }
 
-        // Loop through a final time to add lines.
+        // Loop through a final time to add lines and set summary text positions.
         for graph_row_rc in &graph_rows {
             let mut graph_row = graph_row_rc.borrow_mut();
+
+            graph_row.summary_location.x = *occupied_locations_table[graph_row.circle_location.y].iter().max().unwrap_or(&0) + 1;
+
             if let Some(parent_oids) = commit_parent_oid_map.get(&graph_row.oid) {
                 for parent_oid in parent_oids {
                     if let Some(parent_commit_rc) = commit_map.get(parent_oid) {

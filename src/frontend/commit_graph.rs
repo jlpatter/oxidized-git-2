@@ -45,26 +45,61 @@ impl LocationIndex {
     }
 }
 
-struct Commit {
+struct GraphRow {
     // NOTE: X and Y here are not pixel coordinates, they act more like indexes of valid 'positions'.
     oid: Oid,
-    location: LocationIndex,
+    circle_location: LocationIndex,
+    summary_location: LocationIndex,
     summary: String,
+    // These are lines that start in this row.
+    lines: Vec<Line>,
 }
 
-impl Commit {
+impl GraphRow {
     pub fn new(commit: git2::Commit, i: usize) -> Result<Self> {
         Ok(Self {
             oid: commit.id(),
-            location: LocationIndex::new(0, i),
+            circle_location: LocationIndex::new(0, i),
+            summary_location: LocationIndex::new(1, i),
             summary: String::from(commit.summary().ok_or(Error::msg("Commit summary has invalid UTF-8!"))?),
+            lines: vec![],
         })
     }
 
+    pub fn set_summary_location_to_right(&mut self) {
+        let mut max_x: usize = 0;
+        let max_line_x_opt = self.lines.iter().map(|line| {
+            line.start.x
+        }).max();
+        if let Some(max_line_x) = max_line_x_opt {
+            max_x = max_line_x;
+        }
+        max_x = max_x.max(self.circle_location.x);
+        self.summary_location.x = max_x + 1;
+    }
+
+    pub fn set_summary_location_if_larger(&mut self, new_x: usize) {
+        if new_x > self.summary_location.x {
+            self.summary_location.x = new_x;
+        }
+    }
+
     pub fn show(&self, painter: &Painter, scroll_area_top_left: Pos2) {
-        let circle_position = self.location.get_relative_pos2(scroll_area_top_left);
-        painter.circle_filled(circle_position, CIRCLE_RADIUS, self.location.get_color());
-        painter.text(circle_position + Vec2::new(X_OFFSET, 0.0), Align2::LEFT_CENTER, self.summary.clone(), FontId::default(), Color32::WHITE);
+        for line in &self.lines {
+            line.show(painter, scroll_area_top_left);
+        }
+        painter.circle_filled(
+            self.circle_location.get_relative_pos2(scroll_area_top_left),
+            CIRCLE_RADIUS,
+            self.circle_location.get_color()
+        );
+        painter.text(
+            self.summary_location.get_relative_pos2(scroll_area_top_left),
+            Align2::LEFT_CENTER,
+            self.summary.clone(),
+            FontId::default(),
+            Color32::WHITE
+        );
     }
 }
 
@@ -87,57 +122,55 @@ impl Line {
 }
 
 pub struct CommitGraph {
-    commits: Vec<Rc<RefCell<Commit>>>,
-    lines: Vec<Line>,
+    graph_rows: Vec<Rc<RefCell<GraphRow>>>,
 }
 
 impl CommitGraph {
     pub fn new(repo: &Repository) -> Result<Self> {
-        let (commits, lines) = CommitGraph::get_commits_and_lines(repo)?;
+        let graph_rows = CommitGraph::get_commits_and_lines(repo)?;
         Ok(Self {
-            commits,
-            lines,
+            graph_rows,
         })
     }
 
-    fn get_commits_and_lines(repo: &Repository) -> Result<(Vec<Rc<RefCell<Commit>>>, Vec<Line>)> {
+    fn get_commits_and_lines(repo: &Repository) -> Result<Vec<Rc<RefCell<GraphRow>>>> {
         // Loop through once to get all the commits and create a mapping to get the parents later.
         let oid_vec = git_revwalk(repo)?;
-        let mut commits = vec![];
+        let mut graph_rows = vec![];
         // commit_map and commit_parent_oid_map are just used to get the parents within this fn.
-        let mut commit_map: HashMap<Oid, Rc<RefCell<Commit>>> = HashMap::new();
+        let mut commit_map: HashMap<Oid, Rc<RefCell<GraphRow>>> = HashMap::new();
         let mut commit_parent_oid_map: HashMap<Oid, Vec<Oid>> = HashMap::new();
         for (i, oid) in oid_vec.iter().enumerate() {
             let git_commit = repo.find_commit(*oid)?;
             commit_parent_oid_map.insert(*oid, git_commit.parents().map(|p| p.id()).collect());
-            let commit_rc = Rc::new(RefCell::new(Commit::new(git_commit, i)?));
-            commit_map.insert(*oid, commit_rc.clone());
-            commits.push(commit_rc);
+            let graph_row_rc = Rc::new(RefCell::new(GraphRow::new(git_commit, i)?));
+            commit_map.insert(*oid, graph_row_rc.clone());
+            graph_rows.push(graph_row_rc);
         }
 
-        // Now, loop through a second time to set the parent locations and lines.
+        // Now, loop through a second time to set the parent locations.
         let mut occupied_locations_table: Vec<Vec<usize>> = vec![];
-        for commit_rc in &commits {
-            let mut commit = commit_rc.borrow_mut();
+        for graph_row_rc in &graph_rows {
+            let mut graph_row = graph_row_rc.borrow_mut();
 
             // Set the current node position as occupied (or find a position that's unoccupied and occupy it).
-            if commit.location.y < occupied_locations_table.len() {
-                while occupied_locations_table[commit.location.y].contains(&commit.location.x) {
-                    commit.location.x += 1;
+            if graph_row.circle_location.y < occupied_locations_table.len() {
+                while occupied_locations_table[graph_row.circle_location.y].contains(&graph_row.circle_location.x) {
+                    graph_row.circle_location.x += 1;
                 }
-                occupied_locations_table[commit.location.y].push(commit.location.x);
+                occupied_locations_table[graph_row.circle_location.y].push(graph_row.circle_location.x);
             } else {
-                occupied_locations_table.push(vec![commit.location.x]);
+                occupied_locations_table.push(vec![graph_row.circle_location.x]);
             }
 
-            if let Some(parent_oids) = commit_parent_oid_map.get(&commit.oid) {
+            if let Some(parent_oids) = commit_parent_oid_map.get(&graph_row.oid) {
                 for parent_oid in parent_oids {
                     // Set the space of the line from the current node to its parents as occupied.
-                    if let Some(parent_commit_rc) = commit_map.get(parent_oid) {
-                        let mut parent_commit = parent_commit_rc.borrow_mut();
+                    if let Some(parent_graph_row_rc) = commit_map.get(parent_oid) {
+                        let mut parent_graph_row = parent_graph_row_rc.borrow_mut();
                         let mut moved_x_val = 0;
-                        for i in (commit.location.y + 1)..parent_commit.location.y {
-                            let mut x_val = commit.location.x;
+                        for i in (graph_row.circle_location.y + 1)..parent_graph_row.circle_location.y {
+                            let mut x_val = graph_row.circle_location.x;
                             if i < occupied_locations_table.len() {
                                 while occupied_locations_table[i].contains(&x_val) {
                                     x_val += 1;
@@ -151,12 +184,80 @@ impl CommitGraph {
                             }
                         }
                         // This is used particularly for merging lines
-                        parent_commit.location.x = moved_x_val;
+                        parent_graph_row.circle_location.x = moved_x_val;
                     }
                 }
             }
         }
-        Ok((commits, vec![]))
+
+        // Loop through after everything's set in order to set summary text positions.
+        // TODO: This is still broken :(
+        for graph_row_rc in &graph_rows {
+            let mut graph_row = graph_row_rc.borrow_mut();
+            graph_row.set_summary_location_to_right();
+
+            // This is to set summary text positions next to curved lines.
+            if let Some(parent_oids) = commit_parent_oid_map.get(&graph_row.oid) {
+                for parent_oid in parent_oids {
+                    if let Some(parent_commit_rc) = commit_map.get(parent_oid) {
+                        let mut parent_graph_row = parent_commit_rc.borrow_mut();
+                        if graph_row.circle_location.x < parent_graph_row.circle_location.x {
+                            graph_row.set_summary_location_if_larger(parent_graph_row.circle_location.x + 1);
+                        } else if graph_row.circle_location.x > parent_graph_row.circle_location.x {
+                            parent_graph_row.set_summary_location_if_larger(graph_row.circle_location.x + 1);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Loop through a final time to add lines.
+        for graph_row_rc in &graph_rows {
+            let mut graph_row = graph_row_rc.borrow_mut();
+            if let Some(parent_oids) = commit_parent_oid_map.get(&graph_row.oid) {
+                for parent_oid in parent_oids {
+                    if let Some(parent_commit_rc) = commit_map.get(parent_oid) {
+                        let parent_graph_row = parent_commit_rc.borrow();
+
+                        let child_x = graph_row.circle_location.x;
+                        let child_y = graph_row.circle_location.y;
+                        let parent_x = parent_graph_row.circle_location.x;
+                        let parent_y = parent_graph_row.circle_location.y;
+                        let before_parent_y = parent_graph_row.circle_location.y - 1;
+                        if before_parent_y != child_y {
+                            let start_index;
+                            let end_index;
+                            let line_x;
+                            if parent_x > child_x {
+                                line_x = parent_x;
+                                start_index = child_y + 1;
+                                end_index = before_parent_y;
+                            } else {
+                                line_x = child_x;
+                                start_index = child_y;
+                                end_index = before_parent_y - 1;
+                            }
+                            for i in start_index..=end_index {
+                                if i == child_y {
+                                    // This is so graph_row doesn't get borrowed twice.
+                                    graph_row.lines.push(Line::new(line_x, i, line_x, i + 1));
+                                } else {
+                                    graph_rows[i].borrow_mut().lines.push(Line::new(line_x, i, line_x, i + 1));
+                                }
+                            }
+                        }
+
+                        if before_parent_y == child_y {
+                            // This is so graph_row doesn't get borrowed twice.
+                            graph_row.lines.push(Line::new(child_x, before_parent_y, parent_x, parent_y));
+                        } else {
+                            graph_rows[before_parent_y].borrow_mut().lines.push(Line::new(child_x, before_parent_y, parent_x, parent_y));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(graph_rows)
     }
 
     pub fn show(&mut self, ui: &mut Ui) {
@@ -166,20 +267,16 @@ impl CommitGraph {
             // This ui.vertical is just to keep the contents at the top of the scroll area if they're
             // smaller than it.
             ui.vertical(|ui| {
-                let graph_height = self.commits.len() as f32 * Y_SPACING;
+                let graph_height = self.graph_rows.len() as f32 * Y_SPACING;
                 let (response, painter) = ui.allocate_painter(Vec2::new(ui.available_width(), graph_height), Sense::hover());
                 let scroll_area_top_left = response.rect.left_top();
 
                 let scroll_position = visible_area_top - scroll_area_top_left.y;
                 let visible_area_top_index = (((scroll_position - Y_OFFSET) / Y_SPACING) as isize - VISIBLE_SCROLL_AREA_PADDING as isize).max(0) as usize;
-                let visible_area_bottom_index = (((scroll_position + visible_area_height - Y_OFFSET) / Y_SPACING) as usize + VISIBLE_SCROLL_AREA_PADDING).min(self.commits.len());
+                let visible_area_bottom_index = (((scroll_position + visible_area_height - Y_OFFSET) / Y_SPACING) as usize + VISIBLE_SCROLL_AREA_PADDING).min(self.graph_rows.len());
 
-                // for i in visible_area_top_index..visible_area_bottom_index {
-                //     // TODO: This isn't going to work since lines may not be in vertical order :'(
-                //     self.lines[i].show(&painter, scroll_area_top_left);
-                // }
                 for i in visible_area_top_index..visible_area_bottom_index {
-                    self.commits[i].borrow().show(&painter, scroll_area_top_left);
+                    self.graph_rows[i].borrow().show(&painter, scroll_area_top_left);
                 }
             });
         });

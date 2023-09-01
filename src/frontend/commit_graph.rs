@@ -17,6 +17,7 @@ const VISIBLE_SCROLL_AREA_PADDING: usize = 10;
 
 #[derive(Copy, Clone)]
 struct LocationIndex {
+    // NOTE: X and Y here are not pixel coordinates, they act more like indexes of valid 'positions'.
     x: usize,
     y: usize,
 }
@@ -47,20 +48,21 @@ impl LocationIndex {
 }
 
 struct GraphRow {
-    // NOTE: X and Y here are not pixel coordinates, they act more like indexes of valid 'positions'.
     circle_location: Rc<RefCell<LocationIndex>>,
-    summary_location: LocationIndex,
+    summary_location: Rc<RefCell<LocationIndex>>,
     summary: String,
     lines: Vec<Line>,
+    locations: Vec<Rc<RefCell<LocationIndex>>>,
 }
 
 impl GraphRow {
-    pub fn new(circle_location: Rc<RefCell<LocationIndex>>, summary_location: LocationIndex, summary: String) -> Self {
+    pub fn new(circle_location: Rc<RefCell<LocationIndex>>, summary_location: Rc<RefCell<LocationIndex>>, summary: String) -> Self {
         Self {
-            circle_location,
-            summary_location,
+            circle_location: circle_location.clone(),
+            summary_location: summary_location.clone(),
             summary,
             lines: vec![],
+            locations: vec![circle_location, summary_location],
         }
     }
 
@@ -75,7 +77,7 @@ impl GraphRow {
             circle_location.get_color()
         );
         painter.text(
-            self.summary_location.get_relative_pos2(scroll_area_top_left),
+            self.summary_location.borrow().get_relative_pos2(scroll_area_top_left),
             Align2::LEFT_CENTER,
             self.summary.clone(),
             FontId::default(),
@@ -129,22 +131,31 @@ impl CommitGraph {
             let git_commit = repo.find_commit(oid)?;
 
             let summary = String::from(git_commit.summary().ok_or(Error::msg("Commit message has invalid UTF-8!"))?);
-            let graph_row_rc = Rc::new(RefCell::new(GraphRow::new(
+            let graph_row = GraphRow::new(
                 Rc::new(RefCell::new(LocationIndex::new(0, i))),
-                LocationIndex::new(1, i),
+                Rc::new(RefCell::new(LocationIndex::new(1, i))),
                 summary,
-            )));
+            );
 
             for parent_oid in git_commit.parent_ids() {
                 if let Some(parent_row_rc) = graph_row_commit_map.get(&parent_oid) {
                     let parent_row = parent_row_rc.borrow();
                     // TODO: Connect the parents to the current row here!
+
+                    let after_parent_y = parent_row.circle_location.borrow().y + 1;
+                    let child_y = graph_row.circle_location.borrow().y;
+                    if after_parent_y < child_y {
+                        // TODO: Add lines.
+                    }
                 }
             }
 
+            let graph_row_rc = Rc::new(RefCell::new(graph_row));
             graph_row_commit_map.insert(oid, graph_row_rc.clone());
             graph_rows.push(graph_row_rc);
         }
+
+        // TODO: Reverse the graph_rows and set their y's to the correct (inverse) positions!
         Ok(graph_rows)
     }
 

@@ -111,7 +111,7 @@ impl GraphRow {
 }
 
 struct Line {
-    end_line: Rc<RefCell<Line>>,
+    end_element: Rc<RefCell<GraphElement>>,
 }
 
 impl Line {

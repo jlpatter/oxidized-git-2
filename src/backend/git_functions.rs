@@ -1,7 +1,7 @@
 use anyhow::Result;
-use git2::{Oid, Repository, Sort};
+use git2::{Oid, Repository, Revwalk, Sort};
 
-pub fn git_revwalk(repo: &Repository) -> Result<Vec<Oid>> {
+pub fn git_revwalk(repo: &Repository) -> Result<Revwalk> {
     // First, we need to get the commits to start/include in the revwalk.
     let mut initial_oid_vec: Vec<Oid> = vec![];
     for branch_result in repo.branches(None)? {
@@ -37,11 +37,6 @@ pub fn git_revwalk(repo: &Repository) -> Result<Vec<Oid>> {
     for oid in initial_oid_vec {
         revwalk.push(oid)?;
     }
-    revwalk.set_sorting(Sort::TOPOLOGICAL)?;
-
-    let mut all_oids_vec: Vec<Oid> = vec![];
-    for commit_oid_result in revwalk {
-        all_oids_vec.push(commit_oid_result?);
-    }
-    Ok(all_oids_vec)
+    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::REVERSE)?;
+    Ok(revwalk)
 }

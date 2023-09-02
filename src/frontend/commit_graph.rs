@@ -124,14 +124,14 @@ impl CommitGraph {
     fn get_commits_and_lines(repo: &Repository) -> Result<Vec<Rc<RefCell<GraphRow>>>> {
         // Loop through once to get all the commits and create a mapping to get the parents later.
         let revwalk = git_revwalk(repo)?;
-        let mut graph_rows = vec![];
+        let mut graph_rows: Vec<Rc<RefCell<GraphRow>>> = vec![];
         let mut graph_row_commit_map: HashMap<Oid, Rc<RefCell<GraphRow>>> = HashMap::new();
         for (i, oid_result) in revwalk.enumerate() {
             let oid = oid_result?;
             let git_commit = repo.find_commit(oid)?;
 
             let summary = String::from(git_commit.summary().ok_or(Error::msg("Commit message has invalid UTF-8!"))?);
-            let graph_row = GraphRow::new(
+            let mut graph_row = GraphRow::new(
                 Rc::new(RefCell::new(LocationIndex::new(0, i))),
                 Rc::new(RefCell::new(LocationIndex::new(1, i))),
                 summary,
@@ -140,12 +140,32 @@ impl CommitGraph {
             for parent_oid in git_commit.parent_ids() {
                 if let Some(parent_row_rc) = graph_row_commit_map.get(&parent_oid) {
                     let parent_row = parent_row_rc.borrow();
-                    // TODO: Connect the parents to the current row here!
 
                     let after_parent_y = parent_row.circle_location.borrow().y + 1;
                     let child_y = graph_row.circle_location.borrow().y;
+                    let parent_x = parent_row.circle_location.borrow().x;
+                    // TODO: This will probably need to account for differing x's as well!
+                    // If there are multiple rows between the parent and child.
                     if after_parent_y < child_y {
-                        // TODO: Add lines.
+                        for j in after_parent_y..child_y {
+                            let mut before_row = graph_rows[j - 1].borrow_mut();
+                            let mut current_row = graph_rows[j].borrow_mut();
+                            let start_location_rc = Rc::new(RefCell::new(LocationIndex::new(parent_x, current_row.circle_location.borrow().y)));
+                            let end_location_rc = Rc::new(RefCell::new(LocationIndex::new(parent_x, before_row.circle_location.borrow().y)));
+                            let line = Line::new(
+                                start_location_rc.clone(),
+                                end_location_rc.clone(),
+                            );
+                            // TODO: Need to shift other elements to the right if they are left/equal to this one!
+                            current_row.lines.push(line);
+                            current_row.locations.push(start_location_rc);
+                            before_row.locations.push(end_location_rc);
+                        }
+                    } else {
+                        let line = Line::new(graph_row.circle_location.clone(), parent_row.circle_location.clone());
+                        // Shifting other elements does not occur here because this line is on top
+                        // of a circle.
+                        graph_row.lines.push(line);
                     }
                 }
             }

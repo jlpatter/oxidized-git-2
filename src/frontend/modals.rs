@@ -46,6 +46,17 @@ impl ErrorModal {
         self.error_msg = msg;
     }
 
+    pub fn handle_error<T>(&mut self, result: Result<T>) -> Option<T> {
+        match result {
+            Ok(t) => Some(t),
+            Err(e) => {
+                self.set_error_msg(e.to_string());
+                self.open();
+                None
+            },
+        }
+    }
+
     pub fn show(&mut self, ui: &mut Ui) {
         if self.is_open {
             self.show_in_modal(String::from("error-modal"), ui, |other_self, ui| {

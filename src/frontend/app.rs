@@ -1,4 +1,4 @@
-use anyhow::Result;
+use std::sync::{Arc, Mutex};
 use eframe::Frame;
 use egui::{Button, Context, SelectableLabel, Ui, Vec2};
 use crate::frontend::modals::{AddTabModal, ErrorModal, Modal};
@@ -10,9 +10,9 @@ const TAB_ADD_BTN_WIDTH: f32 = 20.0;
 
 #[derive(Default)]
 pub struct OG2App {
-    tabs: Vec<OG2Tab>,
+    tabs: Arc<Mutex<Vec<OG2Tab>>>,
     active_tab: usize,
-    error_modal: ErrorModal,
+    error_modal: Arc<Mutex<ErrorModal>>,
     add_tab_modal: AddTabModal,
 }
 
@@ -25,21 +25,11 @@ impl OG2App {
         Self::default()
     }
 
-    fn handle_error<T>(&mut self, result: Result<T>) -> Option<T> {
-        match result {
-            Ok(t) => Some(t),
-            Err(e) => {
-                self.error_modal.set_error_msg(e.to_string());
-                self.error_modal.open();
-                None
-            },
-        }
-    }
-
     fn show_modals(&mut self, ui: &mut Ui) {
-        self.error_modal.show(ui);
         let add_tab_modal_res = self.add_tab_modal.show(ui, &mut self.tabs, &mut self.active_tab);
-        self.handle_error(add_tab_modal_res);
+        let mut error_modal = self.error_modal.lock().unwrap();
+        error_modal.handle_error(add_tab_modal_res);
+        error_modal.show(ui);
     }
 
     fn show_welcome_btns(&mut self, ui: &mut Ui) {
@@ -48,8 +38,8 @@ impl OG2App {
                 // TODO: Implement Init
             }
             if ui.button("Open").clicked() {
-                let res = utils::open_repo_as_tab(&mut self.tabs, &mut self.active_tab, ui.ctx());
-                self.handle_error(res);
+                let res = utils::open_repo_as_tab(self.tabs, &mut self.active_tab, ui.ctx());
+                self.error_modal.lock().unwrap().handle_error(res);
             }
             if ui.button("Clone").clicked() {
                 // TODO: Implement Clone

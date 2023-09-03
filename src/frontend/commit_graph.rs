@@ -165,8 +165,10 @@ impl CommitGraph {
                         if parent_count == 1 {
                             let mut parent_row = parent_row_rc.borrow_mut();
                             // Add branching line to previous commits that will be moved over.
-                            let line_index = parent_row.lines.iter().position(|line| line.end_location.x == old_child_x).unwrap();
-                            parent_row.lines[line_index].end_location.x += 1;
+                            let line_index_opt = parent_row.lines.iter().position(|line| line.end_location.x == old_child_x);
+                            if let Some(line_index) = line_index_opt {
+                                parent_row.lines[line_index].end_location.x += 1;
+                            }
                         }
 
                         for j in after_parent_y..=child_y {
@@ -182,9 +184,9 @@ impl CommitGraph {
                                 current_row_location_y = graph_row.circle_location.y;
                             }
 
-                            // Create the new straight line to the existing parent.
                             let end_line_x;
                             if j == child_y {
+                                // This is for merging lines.
                                 end_line_x = graph_row.circle_location.x;
                             } else {
                                 end_line_x = parent_x;

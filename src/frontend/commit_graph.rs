@@ -48,21 +48,28 @@ impl LocationIndex {
 }
 
 struct GraphRow {
-    circle_location: Rc<RefCell<LocationIndex>>,
-    summary_location: Rc<RefCell<LocationIndex>>,
+    circle_location: LocationIndex,
+    summary_location: LocationIndex,
     summary: String,
     lines: Vec<Line>,
-    locations: Vec<Rc<RefCell<LocationIndex>>>,
 }
 
 impl GraphRow {
-    pub fn new(circle_location: Rc<RefCell<LocationIndex>>, summary_location: Rc<RefCell<LocationIndex>>, summary: String) -> Self {
+    pub fn new(circle_location: LocationIndex, summary_location: LocationIndex, summary: String) -> Self {
         Self {
-            circle_location: circle_location.clone(),
-            summary_location: summary_location.clone(),
+            circle_location,
+            summary_location,
             summary,
             lines: vec![],
-            locations: vec![circle_location, summary_location],
+        }
+    }
+
+    pub fn shift_elements_right_one(&mut self) {
+        self.circle_location.x += 1;
+        self.summary_location.x += 1;
+        for line in &mut self.lines {
+            line.start_location.x += 1;
+            line.end_location.x += 1;
         }
     }
 
@@ -70,14 +77,13 @@ impl GraphRow {
         for line in &self.lines {
             line.show(painter, scroll_area_top_left);
         }
-        let circle_location = self.circle_location.borrow();
         painter.circle_filled(
-            circle_location.get_relative_pos2(scroll_area_top_left),
+            self.circle_location.get_relative_pos2(scroll_area_top_left),
             CIRCLE_RADIUS,
-            circle_location.get_color()
+            self.circle_location.get_color()
         );
         painter.text(
-            self.summary_location.borrow().get_relative_pos2(scroll_area_top_left),
+            self.summary_location.get_relative_pos2(scroll_area_top_left),
             Align2::LEFT_CENTER,
             self.summary.clone(),
             FontId::default(),
@@ -87,12 +93,12 @@ impl GraphRow {
 }
 
 struct Line {
-    start_location: Rc<RefCell<LocationIndex>>,
-    end_location: Rc<RefCell<LocationIndex>>,
+    start_location: LocationIndex,
+    end_location: LocationIndex,
 }
 
 impl Line {
-    pub fn new(start_location: Rc<RefCell<LocationIndex>>, end_location: Rc<RefCell<LocationIndex>>) -> Self {
+    pub fn new(start_location: LocationIndex, end_location: LocationIndex) -> Self {
         Self {
             start_location,
             end_location,
@@ -100,11 +106,9 @@ impl Line {
     }
 
     pub fn show(&self, painter: &Painter, scroll_area_top_left: Pos2) {
-        let start_location = self.start_location.borrow();
-        let end_location = self.end_location.borrow();
         painter.line_segment(
-            [start_location.get_relative_pos2(scroll_area_top_left), end_location.get_relative_pos2(scroll_area_top_left)],
-            Stroke::new(LINE_STROKE_WIDTH, start_location.get_color())
+            [self.start_location.get_relative_pos2(scroll_area_top_left), self.end_location.get_relative_pos2(scroll_area_top_left)],
+            Stroke::new(LINE_STROKE_WIDTH, self.start_location.get_color())
         );
     }
 }
@@ -131,41 +135,72 @@ impl CommitGraph {
             let git_commit = repo.find_commit(oid)?;
 
             let summary = String::from(git_commit.summary().ok_or(Error::msg("Commit message has invalid UTF-8!"))?);
-            let mut graph_row = GraphRow::new(
-                Rc::new(RefCell::new(LocationIndex::new(0, i))),
-                Rc::new(RefCell::new(LocationIndex::new(1, i))),
+            let graph_row = GraphRow::new(
+                LocationIndex::new(0, i),
+                LocationIndex::new(1, i),
                 summary,
             );
 
+            let parent_count = git_commit.parent_count();
+            // TODO: If the parent_count > 1, then it should swap to the 2 branches from the merge commit!
             for parent_oid in git_commit.parent_ids() {
                 if let Some(parent_row_rc) = graph_row_commit_map.get(&parent_oid) {
-                    let parent_row = parent_row_rc.borrow();
+                    let parent_x;
+                    let parent_y;
+                    {
+                        // parent_row is put in a closure here so it doesn't get borrowed twice.
+                        let parent_row = parent_row_rc.borrow();
+                        parent_x = parent_row.circle_location.x;
+                        parent_y = parent_row.circle_location.y;
+                    }
 
-                    let after_parent_y = parent_row.circle_location.borrow().y + 1;
-                    let child_y = graph_row.circle_location.borrow().y;
-                    let parent_x = parent_row.circle_location.borrow().x;
-                    // TODO: This will probably need to account for differing x's as well!
+                    let after_parent_y = parent_y + 1;
+                    let old_child_x = graph_row.circle_location.x;
+                    let child_y = graph_row.circle_location.y;
                     // If there are multiple rows between the parent and child.
                     if after_parent_y < child_y {
-                        for j in after_parent_y..child_y {
+
+                        // Use a separate closure to update the parent_row line so it doesn't get
+                        // borrowed twice with graph_rows[j - 1].
+                        if parent_count == 1 {
+                            let mut parent_row = parent_row_rc.borrow_mut();
+                            // Add branching line to previous commits that will be moved over.
+                            let line_index = parent_row.lines.iter().position(|line| line.end_location.x == old_child_x).unwrap();
+                            parent_row.lines[line_index].end_location.x += 1;
+                        }
+
+                        for j in after_parent_y..=child_y {
                             let mut before_row = graph_rows[j - 1].borrow_mut();
-                            let mut current_row = graph_rows[j].borrow_mut();
-                            let start_location_rc = Rc::new(RefCell::new(LocationIndex::new(parent_x, current_row.circle_location.borrow().y)));
-                            let end_location_rc = Rc::new(RefCell::new(LocationIndex::new(parent_x, before_row.circle_location.borrow().y)));
+                            let current_row_location_y;
+                            if j < graph_rows.len() {
+                                let mut next_row = graph_rows[j].borrow_mut();
+                                if parent_count == 1 {
+                                    next_row.shift_elements_right_one();
+                                }
+                                current_row_location_y = next_row.circle_location.y;
+                            } else {
+                                current_row_location_y = graph_row.circle_location.y;
+                            }
+
+                            // Create the new straight line to the existing parent.
+                            let end_line_x;
+                            if j == child_y {
+                                end_line_x = graph_row.circle_location.x;
+                            } else {
+                                end_line_x = parent_x;
+                            }
                             let line = Line::new(
-                                start_location_rc.clone(),
-                                end_location_rc.clone(),
+                                LocationIndex::new(parent_x, before_row.circle_location.y),
+                                LocationIndex::new(end_line_x, current_row_location_y)
                             );
-                            // TODO: Need to shift other elements to the right if they are left/equal to this one!
-                            current_row.lines.push(line);
-                            current_row.locations.push(start_location_rc);
-                            before_row.locations.push(end_location_rc);
+                            before_row.lines.push(line);
                         }
                     } else {
-                        let line = Line::new(graph_row.circle_location.clone(), parent_row.circle_location.clone());
+                        let mut parent_row = parent_row_rc.borrow_mut();
+                        let line = Line::new(parent_row.circle_location, graph_row.circle_location);
                         // Shifting other elements does not occur here because this line is on top
                         // of a circle.
-                        graph_row.lines.push(line);
+                        parent_row.lines.push(line);
                     }
                 }
             }

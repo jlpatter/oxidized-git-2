@@ -119,13 +119,13 @@ pub struct CommitGraph {
 
 impl CommitGraph {
     pub fn new(repo: &Repository) -> Result<Self> {
-        let graph_rows = CommitGraph::get_commits_and_lines(repo)?;
+        let graph_rows = CommitGraph::get_graph_rows(repo)?;
         Ok(Self {
             graph_rows,
         })
     }
 
-    fn get_commits_and_lines(repo: &Repository) -> Result<Vec<Rc<RefCell<GraphRow>>>> {
+    fn get_graph_rows(repo: &Repository) -> Result<Vec<Rc<RefCell<GraphRow>>>> {
         // Loop through once to get all the commits and create a mapping to get the parents later.
         let oid_vec = git_revwalk(repo)?;
         let mut graph_rows = vec![];

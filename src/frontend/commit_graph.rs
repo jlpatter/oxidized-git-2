@@ -167,7 +167,7 @@ impl CommitGraph {
                                 while occupied_locations_table[i].contains(&x_val) {
                                     x_val += 1;
                                     // Note: this has to stay in the loop so it's only set when x changes!
-                                    // and not just to svg_row.x
+                                    // and not just to graph_row.circle_location.x
                                     moved_x_val = x_val;
                                 }
                                 occupied_locations_table[i].push(x_val);

@@ -47,9 +47,8 @@ impl OG2App {
         });
     }
 
-    fn show_tab_btns(&mut self, ui: &mut Ui) {
+    fn show_tab_btns(&mut self, ui: &mut Ui, tabs: &Vec<OG2Tab>) {
         ui.horizontal(|ui| {
-            let tabs = self.tabs.lock().unwrap();
             let active_tab = *self.active_tab.lock().unwrap();
             let tab_width = ui.available_width() / tabs.len() as f32 - TAB_ADD_BTN_WIDTH;
             for (i, tab) in tabs.iter().enumerate() {
@@ -74,7 +73,7 @@ impl eframe::App for OG2App {
             let tabs_c = self.tabs.clone();
             let mut tabs = tabs_c.lock().unwrap();
             if tabs.len() > 0 {
-                self.show_tab_btns(ui);
+                self.show_tab_btns(ui, &tabs);
                 tabs[*self.active_tab.lock().unwrap()].show(ui);
             } else {
                 // TODO: Add welcome splash screen?

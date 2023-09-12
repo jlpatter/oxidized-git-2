@@ -1,6 +1,4 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use anyhow::{Error, Result};
 use egui::{Align2, Color32, FontId, Painter, Pos2, ScrollArea, Sense, Stroke, Ui, Vec2};
@@ -47,7 +45,6 @@ impl LocationIndex {
 }
 
 struct GraphRow {
-    // NOTE: X and Y here are not pixel coordinates, they act more like indexes of valid 'positions'.
     oid: Oid,
     circle_location: LocationIndex,
     summary_location: LocationIndex,

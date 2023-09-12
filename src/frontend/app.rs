@@ -1,4 +1,4 @@
-use anyhow::Result;
+use std::sync::{Arc, Mutex};
 use eframe::Frame;
 use egui::{Button, Context, SelectableLabel, Ui, Vec2};
 use crate::frontend::modals::{AddTabModal, ErrorModal, Modal};
@@ -10,9 +10,9 @@ const TAB_ADD_BTN_WIDTH: f32 = 20.0;
 
 #[derive(Default)]
 pub struct OG2App {
-    tabs: Vec<OG2Tab>,
-    active_tab: usize,
-    error_modal: ErrorModal,
+    tabs: Arc<Mutex<Vec<OG2Tab>>>,
+    active_tab: Arc<Mutex<usize>>,
+    error_modal: Arc<Mutex<ErrorModal>>,
     add_tab_modal: AddTabModal,
 }
 
@@ -25,21 +25,11 @@ impl OG2App {
         Self::default()
     }
 
-    fn handle_error<T>(&mut self, result: Result<T>) -> Option<T> {
-        match result {
-            Ok(t) => Some(t),
-            Err(e) => {
-                self.error_modal.set_error_msg(e.to_string());
-                self.error_modal.open();
-                None
-            },
-        }
-    }
-
     fn show_modals(&mut self, ui: &mut Ui) {
-        self.error_modal.show(ui);
-        let add_tab_modal_res = self.add_tab_modal.show(ui, &mut self.tabs, &mut self.active_tab);
-        self.handle_error(add_tab_modal_res);
+        let add_tab_modal_res = self.add_tab_modal.show(ui, self.tabs.clone(), self.active_tab.clone(), self.error_modal.clone());
+        let mut error_modal = self.error_modal.lock().unwrap();
+        error_modal.handle_error(add_tab_modal_res);
+        error_modal.show(ui);
     }
 
     fn show_welcome_btns(&mut self, ui: &mut Ui) {
@@ -48,8 +38,8 @@ impl OG2App {
                 // TODO: Implement Init
             }
             if ui.button("Open").clicked() {
-                let res = utils::open_repo_as_tab(&mut self.tabs, &mut self.active_tab, ui.ctx());
-                self.handle_error(res);
+                let res = utils::open_repo_as_tab(self.tabs.clone(), self.active_tab.clone(), self.error_modal.clone(), ui.ctx().clone());
+                self.error_modal.lock().unwrap().handle_error(res);
             }
             if ui.button("Clone").clicked() {
                 // TODO: Implement Clone
@@ -57,13 +47,14 @@ impl OG2App {
         });
     }
 
-    fn show_tab_btns(&mut self, ui: &mut Ui) {
+    fn show_tab_btns(&mut self, ui: &mut Ui, tabs: &Vec<OG2Tab>) {
         ui.horizontal(|ui| {
-            let tab_width = ui.available_width() / self.tabs.len() as f32 - TAB_ADD_BTN_WIDTH;
-            for (i, tab) in self.tabs.iter().enumerate() {
-                let selectable_label = SelectableLabel::new(self.active_tab == i, &tab.name);
+            let active_tab = *self.active_tab.lock().unwrap();
+            let tab_width = ui.available_width() / tabs.len() as f32 - TAB_ADD_BTN_WIDTH;
+            for (i, tab) in tabs.iter().enumerate() {
+                let selectable_label = SelectableLabel::new(active_tab == i, &tab.name);
                 if ui.add_sized(Vec2::new(tab_width, TAB_HEIGHT), selectable_label).clicked() {
-                    self.active_tab = i;
+                    self.active_tab = Arc::new(Mutex::new(i));
                 }
             }
             if ui.add_sized(Vec2::new(TAB_ADD_BTN_WIDTH, TAB_HEIGHT), Button::new("+")).clicked() {
@@ -78,9 +69,12 @@ impl eframe::App for OG2App {
         egui::CentralPanel::default().show(ctx, |ui| {
             self.show_modals(ui);
 
-            if self.tabs.len() > 0 {
-                self.show_tab_btns(ui);
-                self.tabs[self.active_tab].show(ui);
+            // This is done so 'self' doesn't get borrowed twice.
+            let tabs_c = self.tabs.clone();
+            let mut tabs = tabs_c.lock().unwrap();
+            if tabs.len() > 0 {
+                self.show_tab_btns(ui, &tabs);
+                tabs[*self.active_tab.lock().unwrap()].show(ui);
             } else {
                 // TODO: Add welcome splash screen?
                 self.show_welcome_btns(ui);

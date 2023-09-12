@@ -1,6 +1,5 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use anyhow::{Error, Result};
 use egui::{Align2, Color32, FontId, Painter, Pos2, ScrollArea, Sense, Stroke, Ui, Vec2};
 use git2::{Oid, Repository};
@@ -46,7 +45,6 @@ impl LocationIndex {
 }
 
 struct GraphRow {
-    // NOTE: X and Y here are not pixel coordinates, they act more like indexes of valid 'positions'.
     oid: Oid,
     circle_location: LocationIndex,
     summary_location: LocationIndex,
@@ -114,7 +112,7 @@ impl Line {
 }
 
 pub struct CommitGraph {
-    graph_rows: Vec<Rc<RefCell<GraphRow>>>,
+    graph_rows: Vec<Arc<Mutex<GraphRow>>>,
 }
 
 impl CommitGraph {
@@ -125,25 +123,25 @@ impl CommitGraph {
         })
     }
 
-    fn get_graph_rows(repo: &Repository) -> Result<Vec<Rc<RefCell<GraphRow>>>> {
+    fn get_graph_rows(repo: &Repository) -> Result<Vec<Arc<Mutex<GraphRow>>>> {
         // Loop through once to get all the commits and create a mapping to get the parents later.
         let oid_vec = git_revwalk(repo)?;
         let mut graph_rows = vec![];
         // commit_map and commit_parent_oid_map are just used to get the parents within this fn.
-        let mut commit_map: HashMap<Oid, Rc<RefCell<GraphRow>>> = HashMap::new();
+        let mut commit_map: HashMap<Oid, Arc<Mutex<GraphRow>>> = HashMap::new();
         let mut commit_parent_oid_map: HashMap<Oid, Vec<Oid>> = HashMap::new();
         for (i, oid) in oid_vec.iter().enumerate() {
             let git_commit = repo.find_commit(*oid)?;
             commit_parent_oid_map.insert(*oid, git_commit.parents().map(|p| p.id()).collect());
-            let graph_row_rc = Rc::new(RefCell::new(GraphRow::new(git_commit, i)?));
-            commit_map.insert(*oid, graph_row_rc.clone());
-            graph_rows.push(graph_row_rc);
+            let graph_row_arc = Arc::new(Mutex::new(GraphRow::new(git_commit, i)?));
+            commit_map.insert(*oid, graph_row_arc.clone());
+            graph_rows.push(graph_row_arc);
         }
 
         // Now, loop through a second time to set the parent locations.
         let mut occupied_locations_table: Vec<Vec<usize>> = vec![];
-        for graph_row_rc in &graph_rows {
-            let mut graph_row = graph_row_rc.borrow_mut();
+        for graph_row_arc in &graph_rows {
+            let mut graph_row = graph_row_arc.lock().unwrap();
 
             // Set the current node position as occupied (or find a position that's unoccupied and occupy it).
             if graph_row.circle_location.y < occupied_locations_table.len() {
@@ -158,8 +156,8 @@ impl CommitGraph {
             if let Some(parent_oids) = commit_parent_oid_map.get(&graph_row.oid) {
                 for parent_oid in parent_oids {
                     // Set the space of the line from the current node to its parents as occupied.
-                    if let Some(parent_graph_row_rc) = commit_map.get(parent_oid) {
-                        let mut parent_graph_row = parent_graph_row_rc.borrow_mut();
+                    if let Some(parent_graph_row_arc) = commit_map.get(parent_oid) {
+                        let mut parent_graph_row = parent_graph_row_arc.lock().unwrap();
                         let mut moved_x_val = 0;
                         for i in (graph_row.circle_location.y + 1)..parent_graph_row.circle_location.y {
                             let mut x_val = graph_row.circle_location.x;
@@ -183,13 +181,13 @@ impl CommitGraph {
         }
 
         // Loop through after everything's set in order to properly occupy spaces by curved lines just for summary text positions.
-        for graph_row_rc in &graph_rows {
-            let graph_row = graph_row_rc.borrow();
+        for graph_row_arc in &graph_rows {
+            let graph_row = graph_row_arc.lock().unwrap();
             // This is to set summary text positions next to curved lines.
             if let Some(parent_oids) = commit_parent_oid_map.get(&graph_row.oid) {
                 for parent_oid in parent_oids {
-                    if let Some(parent_commit_rc) = commit_map.get(parent_oid) {
-                        let parent_graph_row = parent_commit_rc.borrow();
+                    if let Some(parent_commit_arc) = commit_map.get(parent_oid) {
+                        let parent_graph_row = parent_commit_arc.lock().unwrap();
                         if graph_row.circle_location.x < parent_graph_row.circle_location.x {
                             let x_val = parent_graph_row.circle_location.x;
                             occupied_locations_table[graph_row.circle_location.y].push(x_val);
@@ -204,14 +202,14 @@ impl CommitGraph {
 
         // Loop through a final time to add lines and set summary text positions.
         for graph_row_rc in &graph_rows {
-            let mut graph_row = graph_row_rc.borrow_mut();
+            let mut graph_row = graph_row_rc.lock().unwrap();
 
             graph_row.summary_location.x = *occupied_locations_table[graph_row.circle_location.y].iter().max().unwrap_or(&0) + 1;
 
             if let Some(parent_oids) = commit_parent_oid_map.get(&graph_row.oid) {
                 for parent_oid in parent_oids {
-                    if let Some(parent_commit_rc) = commit_map.get(parent_oid) {
-                        let parent_graph_row = parent_commit_rc.borrow();
+                    if let Some(parent_commit_arc) = commit_map.get(parent_oid) {
+                        let parent_graph_row = parent_commit_arc.lock().unwrap();
 
                         let child_x = graph_row.circle_location.x;
                         let child_y = graph_row.circle_location.y;
@@ -236,7 +234,7 @@ impl CommitGraph {
                                     // This is so graph_row doesn't get borrowed twice.
                                     graph_row.lines.push(Line::new(line_x, i, line_x, i + 1));
                                 } else {
-                                    graph_rows[i].borrow_mut().lines.push(Line::new(line_x, i, line_x, i + 1));
+                                    graph_rows[i].lock().unwrap().lines.push(Line::new(line_x, i, line_x, i + 1));
                                 }
                             }
                         }
@@ -245,7 +243,7 @@ impl CommitGraph {
                             // This is so graph_row doesn't get borrowed twice.
                             graph_row.lines.push(Line::new(child_x, before_parent_y, parent_x, parent_y));
                         } else {
-                            graph_rows[before_parent_y].borrow_mut().lines.push(Line::new(child_x, before_parent_y, parent_x, parent_y));
+                            graph_rows[before_parent_y].lock().unwrap().lines.push(Line::new(child_x, before_parent_y, parent_x, parent_y));
                         }
                     }
                 }
@@ -270,7 +268,7 @@ impl CommitGraph {
                 let visible_area_bottom_index = (((scroll_position + visible_area_height - Y_OFFSET) / Y_SPACING) as usize + VISIBLE_SCROLL_AREA_PADDING).min(self.graph_rows.len());
 
                 for i in visible_area_top_index..visible_area_bottom_index {
-                    self.graph_rows[i].borrow().show(&painter, scroll_area_top_left);
+                    self.graph_rows[i].lock().unwrap().show(&painter, scroll_area_top_left);
                 }
             });
         });

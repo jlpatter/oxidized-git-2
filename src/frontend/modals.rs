@@ -1,3 +1,4 @@
+use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use egui::{Align, Align2, Area, Button, Color32, Frame, Layout, Stroke, Ui, Vec2};
 use crate::frontend::tab::OG2Tab;
@@ -46,6 +47,17 @@ impl ErrorModal {
         self.error_msg = msg;
     }
 
+    pub fn handle_error<T>(&mut self, result: Result<T>) -> Option<T> {
+        match result {
+            Ok(t) => Some(t),
+            Err(e) => {
+                self.set_error_msg(e.to_string());
+                self.open();
+                None
+            },
+        }
+    }
+
     pub fn show(&mut self, ui: &mut Ui) {
         if self.is_open {
             self.show_in_modal(String::from("error-modal"), ui, |other_self, ui| {
@@ -71,7 +83,7 @@ impl Modal for AddTabModal {
 }
 
 impl AddTabModal {
-    pub fn show(&mut self, ui: &mut Ui, tabs: &mut Vec<OG2Tab>, active_tab: &mut usize) -> Result<()> {
+    pub fn show(&mut self, ui: &mut Ui, tabs: Arc<Mutex<Vec<OG2Tab>>>, active_tab: Arc<Mutex<usize>>, error_modal: Arc<Mutex<ErrorModal>>) -> Result<()> {
         if self.is_open {
             return self.show_in_modal(String::from("add-tab-modal"), ui, |inner_self, ui| -> Result<()> {
                 ui.label("To open a new tab, please initialize, open, or clone another repository.");
@@ -81,7 +93,7 @@ impl AddTabModal {
                         inner_self.close();
                     }
                     if ui.button("Open").clicked() {
-                        utils::open_repo_as_tab(tabs, active_tab, ui.ctx())?;
+                        utils::open_repo_as_tab(tabs, active_tab, error_modal, ui.ctx().clone())?;
                         inner_self.close();
                     }
                     if ui.button("Clone").clicked() {

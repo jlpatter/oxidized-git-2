@@ -38,7 +38,7 @@ impl OG2App {
                 // TODO: Implement Init
             }
             if ui.button("Open").clicked() {
-                let res = utils::open_repo_as_tab(self.tabs.clone(), self.active_tab.clone(), self.error_modal.clone(), ui.ctx());
+                let res = utils::open_repo_as_tab(self.tabs.clone(), self.active_tab.clone(), self.error_modal.clone(), ui.ctx().clone());
                 self.error_modal.lock().unwrap().handle_error(res);
             }
             if ui.button("Clone").clicked() {

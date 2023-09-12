@@ -93,7 +93,7 @@ impl AddTabModal {
                         inner_self.close();
                     }
                     if ui.button("Open").clicked() {
-                        utils::open_repo_as_tab(tabs, active_tab, error_modal, ui.ctx())?;
+                        utils::open_repo_as_tab(tabs, active_tab, error_modal, ui.ctx().clone())?;
                         inner_self.close();
                     }
                     if ui.button("Clone").clicked() {

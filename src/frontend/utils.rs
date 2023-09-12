@@ -8,11 +8,10 @@ use crate::backend::git_utils;
 use crate::frontend::modals::ErrorModal;
 use crate::frontend::tab::OG2Tab;
 
-pub fn open_repo_as_tab(tabs_arc: Arc<Mutex<Vec<OG2Tab>>>, active_tab_arc: Arc<Mutex<usize>>, error_modal_arc: Arc<Mutex<ErrorModal>>, ctx: &Context) -> Result<()> {
+pub fn open_repo_as_tab(tabs_arc: Arc<Mutex<Vec<OG2Tab>>>, active_tab_arc: Arc<Mutex<usize>>, error_modal_arc: Arc<Mutex<ErrorModal>>, ctx_c: Context) -> Result<()> {
     let repo_opt = git_utils::open_repo()?;
     // If a repo was actually opened
     if let Some((name, repo)) = repo_opt {
-        let ctx_c = ctx.clone();
         thread::spawn(move || {
             let mut error_modal = error_modal_arc.lock().unwrap();
             let new_tab_opt = error_modal.handle_error(OG2Tab::new(name, repo, &ctx_c));

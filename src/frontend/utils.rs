@@ -12,9 +12,10 @@ pub fn open_repo_as_tab(tabs_arc: Arc<Mutex<Vec<OG2Tab>>>, active_tab_arc: Arc<M
     let repo_opt = git_utils::open_repo()?;
     // If a repo was actually opened
     if let Some((name, repo)) = repo_opt {
+        let ctx_c = ctx.clone();
         thread::spawn(move || {
             let mut error_modal = error_modal_arc.lock().unwrap();
-            let new_tab_opt = error_modal.handle_error(OG2Tab::new(name, repo, ctx));
+            let new_tab_opt = error_modal.handle_error(OG2Tab::new(name, repo, &ctx_c));
             if let Some(new_tab) = new_tab_opt {
                 let mut tabs = tabs_arc.lock().unwrap();
                 tabs.push(new_tab);

@@ -1,11 +1,15 @@
+use std::sync::{Arc, Mutex};
+use std::thread;
 use anyhow::Result;
 use egui::{Align, Context, CursorIcon, Layout, ScrollArea, Sense, Ui};
 use git2::Repository;
+use crate::backend::git_functions::git_fetch;
 use crate::frontend::branch_tree::{BranchTreeNode, get_branch_trees};
 use crate::frontend::commit_graph::CommitGraph;
 
 pub struct OG2Tab {
     pub(crate) name: String,
+    repo: Arc<Mutex<Repository>>,
     branch_trees: [BranchTreeNode; 3],
     branch_tree_col_width: f32,
     commit_graph: CommitGraph,
@@ -14,11 +18,13 @@ pub struct OG2Tab {
 impl OG2Tab {
     pub fn new(name: String, repo: Repository, ctx: &Context) -> Result<Self> {
         let branch_trees = get_branch_trees(&repo, ctx)?;
+        let commit_graph = CommitGraph::new(&repo)?;
         Ok(Self {
             name,
+            repo: Arc::new(Mutex::new(repo)),
             branch_trees,
             branch_tree_col_width: 200.0,
-            commit_graph: CommitGraph::new(&repo)?,
+            commit_graph,
         })
     }
 
@@ -42,7 +48,12 @@ impl OG2Tab {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 if ui.button("Fetch").clicked() {
-                    // TODO: Implement Fetch
+                    let repo_c = self.repo.clone();
+                    thread::spawn(move || {
+                        let res = git_fetch(&repo_c.lock().unwrap());
+                        // TODO: Need to pass error modal and handle errors here!
+                        // TODO: Need to refresh the graph here!
+                    });
                 }
                 if ui.button("Pull").clicked() {
                     // TODO: Implement Pull

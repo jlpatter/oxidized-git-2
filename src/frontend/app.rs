@@ -8,8 +8,8 @@ use crate::frontend::utils;
 const TAB_HEIGHT: f32 = 20.0;
 const TAB_ADD_BTN_WIDTH: f32 = 20.0;
 
-#[derive(Default)]
 pub struct OG2App {
+    is_loading: Arc<Mutex<bool>>,
     tabs: Arc<Mutex<Vec<OG2Tab>>>,
     active_tab: Arc<Mutex<usize>>,
     error_modal: Arc<Mutex<ErrorModal>>,
@@ -22,27 +22,34 @@ impl OG2App {
         // Restore app state using cc.storage (requires the "persistence" feature).
         // Use the cc.gl (a glow::Context) to create graphics shaders and buffers that you can use
         // for e.g. egui::PaintCallback.
-        Self::default()
+        let error_modal = Arc::new(Mutex::new(ErrorModal::new()));
+        let is_loading = Arc::new(Mutex::new(false));
+        Self {
+            is_loading: is_loading.clone(),
+            tabs: Arc::new(Mutex::new(vec![])),
+            active_tab: Arc::new(Mutex::new(0)),
+            error_modal: error_modal.clone(),
+            add_tab_modal: AddTabModal::new(error_modal, is_loading),
+        }
     }
 
     fn show_modals(&mut self, ui: &mut Ui) {
-        let add_tab_modal_res = self.add_tab_modal.show(ui, self.tabs.clone(), self.active_tab.clone(), self.error_modal.clone());
+        let add_tab_modal_res = self.add_tab_modal.show(ui, self.tabs.clone(), self.active_tab.clone());
         let mut error_modal = self.error_modal.lock().unwrap();
         error_modal.handle_error(add_tab_modal_res);
         error_modal.show(ui);
     }
 
-    fn show_welcome_btns(&mut self, ui: &mut Ui) {
+    fn show_app_btns(&self, ui: &mut Ui) {
         ui.horizontal(|ui| {
-            if ui.button("Init").clicked() {
-                // TODO: Implement Init
+            let mid_width = ui.available_width() / 2.0;
+            if ui.button("BLURG").clicked() {
+                println!("BLURG!");
             }
-            if ui.button("Open").clicked() {
-                let res = utils::open_repo_as_tab(self.tabs.clone(), self.active_tab.clone(), self.error_modal.clone(), ui.ctx().clone());
-                self.error_modal.lock().unwrap().handle_error(res);
-            }
-            if ui.button("Clone").clicked() {
-                // TODO: Implement Clone
+            if *self.is_loading.lock().unwrap() {
+                ui.add_space(ui.available_width() - mid_width);
+                ui.spinner();
+                // TODO: Insert progress bar here!
             }
         });
     }
@@ -62,12 +69,28 @@ impl OG2App {
             }
         });
     }
+
+    fn show_welcome_btns(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            if ui.button("Init").clicked() {
+                // TODO: Implement Init
+            }
+            if ui.button("Open").clicked() {
+                let res = utils::open_repo_as_tab(self.tabs.clone(), self.active_tab.clone(), self.error_modal.clone(), self.is_loading.clone(), ui.ctx().clone());
+                self.error_modal.lock().unwrap().handle_error(res);
+            }
+            if ui.button("Clone").clicked() {
+                // TODO: Implement Clone
+            }
+        });
+    }
 }
 
 impl eframe::App for OG2App {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             self.show_modals(ui);
+            self.show_app_btns(ui);
 
             // This is done so 'self' doesn't get borrowed twice.
             let tabs_c = self.tabs.clone();

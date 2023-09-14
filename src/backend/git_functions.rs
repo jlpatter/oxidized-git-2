@@ -1,5 +1,6 @@
-use anyhow::Result;
-use git2::{Oid, Repository, Sort};
+use anyhow::{Error, Result};
+use git2::{AutotagOption, FetchOptions, FetchPrune, Oid, Repository, Sort};
+use crate::backend::git_utils;
 
 pub fn git_revwalk(repo: &Repository) -> Result<Vec<Oid>> {
     // First, we need to get the commits to start/include in the revwalk.
@@ -44,4 +45,19 @@ pub fn git_revwalk(repo: &Repository) -> Result<Vec<Oid>> {
         all_oids_vec.push(commit_oid_result?);
     }
     Ok(all_oids_vec)
+}
+
+pub fn git_fetch(repo: &Repository) -> Result<()> {
+    let remote_string_array = repo.remotes()?;
+    let empty_refspecs: &[String] = &[];
+    for remote_string_opt in remote_string_array.iter() {
+        let remote_string = remote_string_opt.ok_or(Error::msg("Remote Name has invalid UTF-8!"))?;
+        let mut remote = repo.find_remote(remote_string)?;
+        let mut fetch_options = FetchOptions::new();
+        fetch_options.download_tags(AutotagOption::All);
+        fetch_options.prune(FetchPrune::On);
+        fetch_options.remote_callbacks(git_utils::get_remote_callbacks());
+        remote.fetch(empty_refspecs, Some(&mut fetch_options), None)?;
+    }
+    Ok(())
 }

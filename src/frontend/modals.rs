@@ -26,7 +26,6 @@ pub trait Modal {
     }
 }
 
-#[derive(Default)]
 pub struct ErrorModal {
     is_open: bool,
     error_msg: String,
@@ -43,6 +42,13 @@ impl Modal for ErrorModal {
 }
 
 impl ErrorModal {
+    pub fn new() -> Self {
+        Self {
+            is_open: false,
+            error_msg: String::new(),
+        }
+    }
+
     pub fn set_error_msg(&mut self, msg: String) {
         self.error_msg = msg;
     }
@@ -67,8 +73,8 @@ impl ErrorModal {
     }
 }
 
-#[derive(Default)]
 pub struct AddTabModal {
+    error_modal: Arc<Mutex<ErrorModal>>,
     is_open: bool,
 }
 
@@ -83,7 +89,14 @@ impl Modal for AddTabModal {
 }
 
 impl AddTabModal {
-    pub fn show(&mut self, ui: &mut Ui, tabs: Arc<Mutex<Vec<OG2Tab>>>, active_tab: Arc<Mutex<usize>>, error_modal: Arc<Mutex<ErrorModal>>) -> Result<()> {
+    pub fn new(error_modal: Arc<Mutex<ErrorModal>>) -> Self {
+        Self {
+            error_modal,
+            is_open: false,
+        }
+    }
+
+    pub fn show(&mut self, ui: &mut Ui, tabs: Arc<Mutex<Vec<OG2Tab>>>, active_tab: Arc<Mutex<usize>>) -> Result<()> {
         if self.is_open {
             return self.show_in_modal(String::from("add-tab-modal"), ui, |inner_self, ui| -> Result<()> {
                 ui.label("To open a new tab, please initialize, open, or clone another repository.");
@@ -93,7 +106,7 @@ impl AddTabModal {
                         inner_self.close();
                     }
                     if ui.button("Open").clicked() {
-                        utils::open_repo_as_tab(tabs, active_tab, error_modal, ui.ctx().clone())?;
+                        utils::open_repo_as_tab(tabs, active_tab, inner_self.error_modal.clone(), ui.ctx().clone())?;
                         inner_self.close();
                     }
                     if ui.button("Clone").clicked() {

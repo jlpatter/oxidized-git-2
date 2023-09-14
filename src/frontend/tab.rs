@@ -6,22 +6,25 @@ use git2::Repository;
 use crate::backend::git_functions::git_fetch;
 use crate::frontend::branch_tree::{BranchTreeNode, get_branch_trees};
 use crate::frontend::commit_graph::CommitGraph;
+use crate::frontend::modals::ErrorModal;
 
 pub struct OG2Tab {
     pub(crate) name: String,
     repo: Arc<Mutex<Repository>>,
+    error_modal: Arc<Mutex<ErrorModal>>,
     branch_trees: [BranchTreeNode; 3],
     branch_tree_col_width: f32,
     commit_graph: CommitGraph,
 }
 
 impl OG2Tab {
-    pub fn new(name: String, repo: Repository, ctx: &Context) -> Result<Self> {
+    pub fn new(name: String, repo: Repository, error_modal: Arc<Mutex<ErrorModal>>, ctx: &Context) -> Result<Self> {
         let branch_trees = get_branch_trees(&repo, ctx)?;
         let commit_graph = CommitGraph::new(&repo)?;
         Ok(Self {
             name,
             repo: Arc::new(Mutex::new(repo)),
+            error_modal,
             branch_trees,
             branch_tree_col_width: 200.0,
             commit_graph,
@@ -49,10 +52,13 @@ impl OG2Tab {
             ui.horizontal(|ui| {
                 if ui.button("Fetch").clicked() {
                     let repo_c = self.repo.clone();
+                    let error_modal_c = self.error_modal.clone();
                     thread::spawn(move || {
                         let res = git_fetch(&repo_c.lock().unwrap());
-                        // TODO: Need to pass error modal and handle errors here!
-                        // TODO: Need to refresh the graph here!
+                        let opt = error_modal_c.lock().unwrap().handle_error(res);
+                        if let Some(()) = opt {
+                            // TODO: Need to refresh the graph here!
+                        }
                     });
                 }
                 if ui.button("Pull").clicked() {

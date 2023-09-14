@@ -13,7 +13,7 @@ pub fn open_repo_as_tab(tabs_arc: Arc<Mutex<Vec<OG2Tab>>>, active_tab_arc: Arc<M
     // If a repo was actually opened
     if let Some((name, repo)) = repo_opt {
         thread::spawn(move || {
-            let new_tab_res = OG2Tab::new(name, repo, &ctx_c);  // This line is slow!
+            let new_tab_res = OG2Tab::new(name, repo, error_modal_arc.clone(), &ctx_c);  // This line is slow!
             // This is on a separate line so it doesn't get locked too early.
             let new_tab_opt = error_modal_arc.lock().unwrap().handle_error(new_tab_res);
             if let Some(new_tab) = new_tab_opt {

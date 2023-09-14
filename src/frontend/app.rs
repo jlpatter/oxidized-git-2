@@ -8,7 +8,6 @@ use crate::frontend::utils;
 const TAB_HEIGHT: f32 = 20.0;
 const TAB_ADD_BTN_WIDTH: f32 = 20.0;
 
-#[derive(Default)]
 pub struct OG2App {
     tabs: Arc<Mutex<Vec<OG2Tab>>>,
     active_tab: Arc<Mutex<usize>>,
@@ -22,11 +21,17 @@ impl OG2App {
         // Restore app state using cc.storage (requires the "persistence" feature).
         // Use the cc.gl (a glow::Context) to create graphics shaders and buffers that you can use
         // for e.g. egui::PaintCallback.
-        Self::default()
+        let error_modal = Arc::new(Mutex::new(ErrorModal::new()));
+        Self {
+            tabs: Arc::new(Mutex::new(vec![])),
+            active_tab: Arc::new(Mutex::new(0)),
+            error_modal: error_modal.clone(),
+            add_tab_modal: AddTabModal::new(error_modal),
+        }
     }
 
     fn show_modals(&mut self, ui: &mut Ui) {
-        let add_tab_modal_res = self.add_tab_modal.show(ui, self.tabs.clone(), self.active_tab.clone(), self.error_modal.clone());
+        let add_tab_modal_res = self.add_tab_modal.show(ui, self.tabs.clone(), self.active_tab.clone());
         let mut error_modal = self.error_modal.lock().unwrap();
         error_modal.handle_error(add_tab_modal_res);
         error_modal.show(ui);

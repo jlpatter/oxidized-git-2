@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use anyhow::{bail, Error, Result};
 use directories::UserDirs;
-use git2::{Cred, CredentialHelper, RemoteCallbacks, Repository};
+use git2::{Config, Cred, CredentialHelper, RemoteCallbacks, Repository};
 use rfd::FileDialog;
 
 pub fn open_repo() -> Result<Option<(String, Repository)>> {
@@ -52,7 +52,11 @@ pub fn get_all_ref_shorthands(repo: &Repository) -> Result<[Vec<String>; 3]> {
 pub fn get_remote_callbacks() -> RemoteCallbacks<'static> {
     let mut callbacks = RemoteCallbacks::new();
     callbacks.credentials(|url, _username_from_url, _allowed_types| {
-        let user_pass_opt = CredentialHelper::new(url).execute();
+        let default_git_config = match Config::open_default() {
+            Ok(c) => c,
+            Err(e) => return Err(e),
+        };
+        let user_pass_opt = CredentialHelper::new(url).config(&default_git_config).execute();
         match user_pass_opt {
             Some((username, password)) => {
                 Cred::userpass_plaintext(username.as_str(), password.as_str())

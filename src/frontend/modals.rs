@@ -76,6 +76,7 @@ impl ErrorModal {
 pub struct AddTabModal {
     error_modal: Arc<Mutex<ErrorModal>>,
     is_open: bool,
+    is_loading: Arc<Mutex<bool>>,
 }
 
 impl Modal for AddTabModal {
@@ -89,10 +90,11 @@ impl Modal for AddTabModal {
 }
 
 impl AddTabModal {
-    pub fn new(error_modal: Arc<Mutex<ErrorModal>>) -> Self {
+    pub fn new(error_modal: Arc<Mutex<ErrorModal>>, is_loading: Arc<Mutex<bool>>) -> Self {
         Self {
             error_modal,
             is_open: false,
+            is_loading,
         }
     }
 
@@ -106,7 +108,7 @@ impl AddTabModal {
                         inner_self.close();
                     }
                     if ui.button("Open").clicked() {
-                        utils::open_repo_as_tab(tabs, active_tab, inner_self.error_modal.clone(), ui.ctx().clone())?;
+                        utils::open_repo_as_tab(tabs, active_tab, inner_self.error_modal.clone(), inner_self.is_loading.clone(), ui.ctx().clone())?;
                         inner_self.close();
                     }
                     if ui.button("Clone").clicked() {

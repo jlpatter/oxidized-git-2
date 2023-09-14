@@ -123,6 +123,11 @@ impl CommitGraph {
         })
     }
 
+    pub fn refresh_graph(&mut self, repo: &Repository) -> Result<()> {
+        self.graph_rows = CommitGraph::get_graph_rows(repo)?;
+        Ok(())
+    }
+
     fn get_graph_rows(repo: &Repository) -> Result<Vec<Arc<Mutex<GraphRow>>>> {
         // Loop through once to get all the commits and create a mapping to get the parents later.
         let oid_vec = git_revwalk(repo)?;

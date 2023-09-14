@@ -11,23 +11,25 @@ use crate::frontend::modals::ErrorModal;
 pub struct OG2Tab {
     pub(crate) name: String,
     repo: Arc<Mutex<Repository>>,
+    is_loading: Arc<Mutex<bool>>,
     error_modal: Arc<Mutex<ErrorModal>>,
     branch_trees: [BranchTreeNode; 3],
     branch_tree_col_width: f32,
-    commit_graph: CommitGraph,
+    commit_graph: Arc<Mutex<CommitGraph>>,
 }
 
 impl OG2Tab {
-    pub fn new(name: String, repo: Repository, error_modal: Arc<Mutex<ErrorModal>>, ctx: &Context) -> Result<Self> {
+    pub fn new(name: String, repo: Repository, is_loading: Arc<Mutex<bool>>, error_modal: Arc<Mutex<ErrorModal>>, ctx: &Context) -> Result<Self> {
         let branch_trees = get_branch_trees(&repo, ctx)?;
         let commit_graph = CommitGraph::new(&repo)?;
         Ok(Self {
             name,
             repo: Arc::new(Mutex::new(repo)),
+            is_loading,
             error_modal,
             branch_trees,
             branch_tree_col_width: 200.0,
-            commit_graph,
+            commit_graph: Arc::new(Mutex::new(commit_graph)),
         })
     }
 
@@ -53,12 +55,17 @@ impl OG2Tab {
                 if ui.button("Fetch").clicked() {
                     let repo_c = self.repo.clone();
                     let error_modal_c = self.error_modal.clone();
+                    let commit_graph_c = self.commit_graph.clone();
+                    let is_loading_c = self.is_loading.clone();
                     thread::spawn(move || {
+                        *is_loading_c.lock().unwrap() = true;
                         let res = git_fetch(&repo_c.lock().unwrap());
                         let opt = error_modal_c.lock().unwrap().handle_error(res);
                         if let Some(()) = opt {
-                            // TODO: Need to refresh the graph here!
+                            let res = commit_graph_c.lock().unwrap().refresh_graph(&repo_c.lock().unwrap());
+                            error_modal_c.lock().unwrap().handle_error(res);
                         }
+                        *is_loading_c.lock().unwrap() = false;
                     });
                 }
                 if ui.button("Pull").clicked() {
@@ -72,7 +79,7 @@ impl OG2Tab {
             ui.with_layout(Layout::top_down(Align::Min).with_main_justify(true), |ui| {
                 ui.horizontal(|ui| {
                     self.show_branch_tree_col(ui);
-                    self.commit_graph.show(ui);
+                    self.commit_graph.lock().unwrap().show(ui);
                 });
             });
         });

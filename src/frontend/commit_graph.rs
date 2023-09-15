@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use anyhow::{Error, Result};
-use egui::{Align2, Color32, FontId, Painter, Pos2, ScrollArea, Sense, Stroke, Ui, Vec2};
+use egui::{Align2, Color32, FontId, Painter, Pos2, Rounding, ScrollArea, Sense, Stroke, Ui, Vec2};
 use git2::{Oid, Repository};
 use crate::backend::git_functions::git_revwalk;
 
@@ -9,9 +9,16 @@ const X_OFFSET: f32 = 10.0;
 const X_SPACING: f32 = 15.0;
 const Y_OFFSET: f32 = 10.0;
 const Y_SPACING: f32 = 30.0;
+const REF_X_SPACING: f32 = 5.0;
+const REF_RECT_ROUNDING: f32 = 5.0;
+const REF_RECT_MARGIN: Vec2 = Vec2::new(3.0, 1.0);
 const CIRCLE_RADIUS: f32 = 7.0;
 const LINE_STROKE_WIDTH: f32 = 3.0;
 const GRAPH_COLORS: [Color32; 4] = [Color32::BLUE, Color32::GREEN, Color32::YELLOW, Color32::RED];
+const LOCAL_BRANCH_COLOR: Color32 = Color32::from_rgb(200, 0, 0);
+const REMOTE_BRANCH_COLOR: Color32 = Color32::from_rgb(0, 139, 0);
+const TAG_COLOR: Color32 = Color32::from_rgb(160, 160, 160);
+const REF_GAMMA_MULTIPLIER: f32 = 0.3;  // Set higher to make more opaque.
 const VISIBLE_SCROLL_AREA_PADDING: usize = 10;
 
 struct LocationIndex {
@@ -44,21 +51,67 @@ impl LocationIndex {
     }
 }
 
+#[derive(Clone)]
+struct GraphRowRef {
+    color: Color32,
+    shorthand: String,
+}
+
+impl GraphRowRef {
+    fn new(color: Color32, shorthand: String) -> Self {
+        Self {
+            color,
+            shorthand,
+        }
+    }
+
+    pub fn get_commit_branch_map(repo: &Repository) -> Result<HashMap<Oid, Vec<GraphRowRef>>> {
+        let mut commit_branch_map: HashMap<Oid, Vec<GraphRowRef>> = HashMap::new();
+        for ref_result in repo.references()? {
+            let reference = ref_result?;
+            let branch_shorthand = reference.shorthand().ok_or(Error::msg("Branch Shorthand has invalid UTF-8!"))?;
+
+            let color;
+            if reference.is_branch() {
+                color = LOCAL_BRANCH_COLOR.gamma_multiply(REF_GAMMA_MULTIPLIER);
+            } else if reference.is_remote() && !branch_shorthand.ends_with("/HEAD") {
+                color = REMOTE_BRANCH_COLOR.gamma_multiply(REF_GAMMA_MULTIPLIER);
+            } else if reference.is_tag() {
+                color = TAG_COLOR.gamma_multiply(REF_GAMMA_MULTIPLIER);
+            } else {
+                continue;
+            }
+
+            let target_oid = reference.peel_to_commit()?.id();
+            let graph_row_ref = GraphRowRef::new(color, String::from(branch_shorthand));
+            match commit_branch_map.get_mut(&target_oid) {
+                Some(v) => v.push(graph_row_ref),
+                None => {
+                    commit_branch_map.insert(target_oid, vec![graph_row_ref]);
+                },
+            };
+        }
+        Ok(commit_branch_map)
+    }
+}
+
 struct GraphRow {
     oid: Oid,
     circle_location: LocationIndex,
     summary_location: LocationIndex,
+    refs: Vec<GraphRowRef>,
     summary: String,
     // These are lines that start in this row.
     lines: Vec<Line>,
 }
 
 impl GraphRow {
-    pub fn new(commit: git2::Commit, i: usize) -> Result<Self> {
+    pub fn new(commit: git2::Commit, refs: Vec<GraphRowRef>, i: usize) -> Result<Self> {
         Ok(Self {
             oid: commit.id(),
             circle_location: LocationIndex::new(0, i),
             summary_location: LocationIndex::new(1, i),
+            refs,
             summary: String::from(commit.summary().ok_or(Error::msg("Commit summary has invalid UTF-8!"))?),
             lines: vec![],
         })
@@ -73,8 +126,20 @@ impl GraphRow {
             CIRCLE_RADIUS,
             self.circle_location.get_color()
         );
+        let mut next_text_position = self.summary_location.get_relative_pos2(scroll_area_top_left);
+        for commit_ref in &self.refs {
+            let ref_rect = painter.text(
+                next_text_position,
+                Align2::LEFT_CENTER,
+                commit_ref.shorthand.clone(),
+                FontId::default(),
+                Color32::WHITE
+            ).expand2(REF_RECT_MARGIN);
+            painter.rect_filled(ref_rect, Rounding::same(REF_RECT_ROUNDING), commit_ref.color);
+            next_text_position = ref_rect.right_center() + Vec2::new(REF_X_SPACING, 0.0);
+        }
         painter.text(
-            self.summary_location.get_relative_pos2(scroll_area_top_left),
+            next_text_position,
             Align2::LEFT_CENTER,
             self.summary.clone(),
             FontId::default(),
@@ -129,16 +194,24 @@ impl CommitGraph {
     }
 
     fn get_graph_rows(repo: &Repository) -> Result<Vec<Arc<Mutex<GraphRow>>>> {
-        // Loop through once to get all the commits and create a mapping to get the parents later.
         let oid_vec = git_revwalk(repo)?;
+        let commit_branch_map = GraphRowRef::get_commit_branch_map(repo)?;
         let mut graph_rows = vec![];
         // commit_map and commit_parent_oid_map are just used to get the parents within this fn.
         let mut commit_map: HashMap<Oid, Arc<Mutex<GraphRow>>> = HashMap::new();
         let mut commit_parent_oid_map: HashMap<Oid, Vec<Oid>> = HashMap::new();
+
+        // Loop through once to get all the commits and create a mapping to get the parents later.
         for (i, oid) in oid_vec.iter().enumerate() {
             let git_commit = repo.find_commit(*oid)?;
             commit_parent_oid_map.insert(*oid, git_commit.parents().map(|p| p.id()).collect());
-            let graph_row_arc = Arc::new(Mutex::new(GraphRow::new(git_commit, i)?));
+
+            let mut graph_row_refs = vec![];
+            if let Some(refs) = commit_branch_map.get(&git_commit.id()) {
+                graph_row_refs = refs.clone();
+            }
+
+            let graph_row_arc = Arc::new(Mutex::new(GraphRow::new(git_commit, graph_row_refs, i)?));
             commit_map.insert(*oid, graph_row_arc.clone());
             graph_rows.push(graph_row_arc);
         }

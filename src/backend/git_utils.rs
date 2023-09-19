@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use anyhow::{bail, Error, Result};
 use directories::UserDirs;
-use git2::{Config, Cred, CredentialHelper, RemoteCallbacks, Repository};
+use git2::{Config, Cred, CredentialHelper, Reference, RemoteCallbacks, Repository};
 use rfd::FileDialog;
 
 pub fn open_repo() -> Result<Option<(String, Repository)>> {
@@ -29,7 +29,7 @@ pub fn open_repo() -> Result<Option<(String, Repository)>> {
     Ok(None)
 }
 
-pub fn get_all_ref_shorthands(repo: &Repository) -> Result<[Vec<String>; 3]> {
+pub fn get_all_refs(repo: &Repository) -> Result<[Vec<Reference>; 3]> {
     let mut local_ref_shorthands = vec![];
     let mut remote_ref_shorthands = vec![];
     let mut tag_ref_shorthands = vec![];
@@ -39,11 +39,11 @@ pub fn get_all_ref_shorthands(repo: &Repository) -> Result<[Vec<String>; 3]> {
         let branch_shorthand = reference.shorthand().ok_or(Error::msg("Branch Shorthand has invalid UTF-8!"))?;
 
         if reference.is_branch() {
-            local_ref_shorthands.push(String::from(branch_shorthand));
+            local_ref_shorthands.push(reference);
         } else if reference.is_remote() && !branch_shorthand.ends_with("/HEAD") {
-            remote_ref_shorthands.push(String::from(branch_shorthand));
+            remote_ref_shorthands.push(reference);
         } else if reference.is_tag() {
-            tag_ref_shorthands.push(String::from(branch_shorthand));
+            tag_ref_shorthands.push(reference);
         }
     }
     Ok([local_ref_shorthands, remote_ref_shorthands, tag_ref_shorthands])

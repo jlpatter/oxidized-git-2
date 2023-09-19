@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use anyhow::{Error, Result};
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rounding, ScrollArea, Sense, Stroke, Ui, Vec2};
-use git2::{Oid, Repository};
+use git2::{BranchType, Oid, Repository};
 use crate::backend::git_functions::git_revwalk;
 
 const X_OFFSET: f32 = 10.0;
@@ -55,13 +55,15 @@ impl LocationIndex {
 struct GraphRowRef {
     color: Color32,
     shorthand: String,
+    is_head: bool,
 }
 
 impl GraphRowRef {
-    fn new(color: Color32, shorthand: String) -> Self {
+    fn new(color: Color32, shorthand: String, is_head: bool) -> Self {
         Self {
             color,
             shorthand,
+            is_head,
         }
     }
 
@@ -71,9 +73,13 @@ impl GraphRowRef {
             let reference = ref_result?;
             let branch_shorthand = reference.shorthand().ok_or(Error::msg("Branch Shorthand has invalid UTF-8!"))?;
 
+            let mut is_head = false;
             let color;
             if reference.is_branch() {
                 color = LOCAL_BRANCH_COLOR.gamma_multiply(REF_GAMMA_MULTIPLIER);
+                if repo.find_branch(branch_shorthand, BranchType::Local)?.is_head() {
+                    is_head = true;
+                }
             } else if reference.is_remote() && !branch_shorthand.ends_with("/HEAD") {
                 color = REMOTE_BRANCH_COLOR.gamma_multiply(REF_GAMMA_MULTIPLIER);
             } else if reference.is_tag() {
@@ -83,7 +89,7 @@ impl GraphRowRef {
             }
 
             let target_oid = reference.peel_to_commit()?.id();
-            let graph_row_ref = GraphRowRef::new(color, String::from(branch_shorthand));
+            let graph_row_ref = GraphRowRef::new(color, String::from(branch_shorthand), is_head);
             match commit_branch_map.get_mut(&target_oid) {
                 Some(v) => v.push(graph_row_ref),
                 None => {
@@ -92,6 +98,25 @@ impl GraphRowRef {
             };
         }
         Ok(commit_branch_map)
+    }
+
+    pub fn show(&self, painter: &Painter, next_text_position: Pos2) -> Pos2 {
+        let text;
+        if self.is_head {
+            text = format!("* {}", self.shorthand);
+        } else {
+            text = self.shorthand.clone();
+        }
+        let ref_rect = painter.text(
+            next_text_position,
+            Align2::LEFT_CENTER,
+            text,
+            FontId::default(),
+            Color32::WHITE
+        ).expand2(REF_RECT_MARGIN);
+        painter.rect_filled(ref_rect, Rounding::same(REF_RECT_ROUNDING), self.color);
+        // Return the next text position.
+        ref_rect.right_center() + Vec2::new(REF_X_SPACING, 0.0)
     }
 }
 
@@ -128,15 +153,7 @@ impl GraphRow {
         );
         let mut next_text_position = self.summary_location.get_relative_pos2(scroll_area_top_left);
         for commit_ref in &self.refs {
-            let ref_rect = painter.text(
-                next_text_position,
-                Align2::LEFT_CENTER,
-                commit_ref.shorthand.clone(),
-                FontId::default(),
-                Color32::WHITE
-            ).expand2(REF_RECT_MARGIN);
-            painter.rect_filled(ref_rect, Rounding::same(REF_RECT_ROUNDING), commit_ref.color);
-            next_text_position = ref_rect.right_center() + Vec2::new(REF_X_SPACING, 0.0);
+            next_text_position = commit_ref.show(painter, next_text_position);
         }
         painter.text(
             next_text_position,

@@ -1,19 +1,19 @@
 use std::path::Path;
-use anyhow::Result;
+use anyhow::{Error, Result};
 use egui::{Context, Image, Label, Sense, TextureHandle, TextureOptions, Ui};
-use git2::Repository;
+use git2::{BranchType, Reference, Repository};
 use crate::backend::git_utils;
 use crate::frontend::utils::load_image_from_path;
 
 const TAB_SIZE: f32 = 20.0;
 
 pub fn get_branch_trees(repo: &Repository, ctx: &Context) -> Result<[BranchTreeNode; 3]> {
-    let ref_shorthand_types = git_utils::get_all_ref_shorthands(repo)?;
+    let ref_shorthand_types = git_utils::get_all_refs(repo)?;
 
     let mut branch_trees = [
-        BranchTreeNode::new(String::from("Local"), true),
-        BranchTreeNode::new(String::from("Remote"), true),
-        BranchTreeNode::new(String::from("Tags"), true)
+        BranchTreeNode::new(String::from("Local"), false, true),
+        BranchTreeNode::new(String::from("Remote"), false, true),
+        BranchTreeNode::new(String::from("Tags"), false, true)
     ];
 
     // Load the arrow images here so they can be cheaply cloned.
@@ -22,9 +22,9 @@ pub fn get_branch_trees(repo: &Repository, ctx: &Context) -> Result<[BranchTreeN
     let down_arrow_image = load_image_from_path(Path::new("./images/down_arrow.png"))?;
     let down_arrow_texture = ctx.load_texture("down-arrow-image", down_arrow_image, TextureOptions::default());
 
-    for (i, ref_shorthands) in ref_shorthand_types.iter().enumerate() {
-        for ref_shorthand in ref_shorthands {
-            branch_trees[i].insert_shorthand(ref_shorthand.clone(), &right_arrow_texture, &down_arrow_texture)?;
+    for (i, refs) in ref_shorthand_types.iter().enumerate() {
+        for reference in refs {
+            branch_trees[i].insert_shorthand(repo, reference, &right_arrow_texture, &down_arrow_texture)?;
         }
     }
     Ok(branch_trees)
@@ -32,6 +32,7 @@ pub fn get_branch_trees(repo: &Repository, ctx: &Context) -> Result<[BranchTreeN
 
 pub struct BranchTreeNode {
     text: String,
+    is_head: bool,
     is_expanded: bool,
     children: Vec<BranchTreeNode>,
     right_arrow_texture: Option<TextureHandle>,
@@ -39,9 +40,10 @@ pub struct BranchTreeNode {
 }
 
 impl BranchTreeNode {
-    pub fn new(text: String, is_expanded: bool) -> Self {
+    pub fn new(text: String, is_head: bool, is_expanded: bool) -> Self {
         Self {
             text,
+            is_head,
             is_expanded,
             children: vec![],
             right_arrow_texture: None,
@@ -58,11 +60,17 @@ impl BranchTreeNode {
         }
     }
 
-    pub fn insert_shorthand(&mut self, branch_shorthand: String, right_arrow_texture: &TextureHandle, down_arrow_texture: &TextureHandle) -> Result<()> {
+    pub fn insert_shorthand(&mut self, repo: &Repository, reference: &Reference, right_arrow_texture: &TextureHandle, down_arrow_texture: &TextureHandle) -> Result<()> {
         // NOTE: This function should only be called on a root node!
         let mut current_tree_node = self;
 
-        let split_shorthand: Vec<&str> = branch_shorthand.split("/").collect();
+        let shorthand = reference.shorthand().ok_or(Error::msg("Branch Shorthand has invalid UTF-8!"))?;
+        let mut is_head = false;
+        if reference.is_branch() && repo.find_branch(shorthand, BranchType::Local)?.is_head() {
+            is_head = true;
+        }
+
+        let split_shorthand: Vec<&str> = shorthand.split("/").collect();
 
         for (i, string_ref) in split_shorthand.iter().enumerate() {
             let shorthand_piece = *string_ref;
@@ -75,11 +83,13 @@ impl BranchTreeNode {
                 },
                 None => {
                     if i == split_shorthand.len() - 1 {
-                        // TODO: This is where branch information can be passed!
-                        current_tree_node.children.push(BranchTreeNode::new(String::from(shorthand_piece), false));
+                        // If this is a leaf...
+                        // This is where branch information can be passed!
+                        current_tree_node.children.push(BranchTreeNode::new(String::from(shorthand_piece), is_head, false));
                         current_tree_node.set_arrow_images(right_arrow_texture, down_arrow_texture);
                     } else {
-                        current_tree_node.children.push(BranchTreeNode::new(String::from(shorthand_piece), false));
+                        // Otherwise, if this node has children...
+                        current_tree_node.children.push(BranchTreeNode::new(String::from(shorthand_piece), false, false));
                         current_tree_node.set_arrow_images(right_arrow_texture, down_arrow_texture);
                     }
                     let last_index = current_tree_node.children.len() - 1;
@@ -111,7 +121,13 @@ impl BranchTreeNode {
             }
 
             // Add text.
-            if ui.add(Label::new(self.text.clone()).wrap(false)).interact(Sense::click()).clicked() {
+            let text;
+            if self.is_head {
+                text = format!("* {}", self.text);
+            } else {
+                text = self.text.clone();
+            }
+            if ui.add(Label::new(text).wrap(false)).interact(Sense::click()).clicked() {
                 row_was_clicked = true;
             }
             if row_was_clicked {

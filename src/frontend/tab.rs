@@ -1,12 +1,12 @@
 use std::sync::{Arc, Mutex};
-use std::thread;
 use anyhow::Result;
 use egui::{Align, Context, CursorIcon, Layout, ScrollArea, Sense, Ui};
 use git2::Repository;
-use crate::backend::git_functions::git_fetch;
+use crate::backend::git_functions::{git_fetch, git_pull};
 use crate::frontend::branch_tree::{BranchTreeNode, get_branch_trees};
 use crate::frontend::commit_graph::CommitGraph;
 use crate::frontend::modals::ErrorModal;
+use crate::frontend::utils::perform_fn_in_thread;
 
 pub struct OG2Tab {
     pub(crate) name: String,
@@ -53,23 +53,10 @@ impl OG2Tab {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 if ui.button("Fetch").clicked() {
-                    let repo_c = self.repo.clone();
-                    let error_modal_c = self.error_modal.clone();
-                    let commit_graph_c = self.commit_graph.clone();
-                    let is_loading_c = self.is_loading.clone();
-                    thread::spawn(move || {
-                        *is_loading_c.lock().unwrap() = true;
-                        let res = git_fetch(&repo_c.lock().unwrap());
-                        let opt = error_modal_c.lock().unwrap().handle_error(res);
-                        if let Some(()) = opt {
-                            let res = commit_graph_c.lock().unwrap().refresh_graph(&repo_c.lock().unwrap());
-                            error_modal_c.lock().unwrap().handle_error(res);
-                        }
-                        *is_loading_c.lock().unwrap() = false;
-                    });
+                    perform_fn_in_thread(git_fetch, self.repo.clone(), self.error_modal.clone(), self.commit_graph.clone(), self.is_loading.clone());
                 }
                 if ui.button("Pull").clicked() {
-                    // TODO: Implement Pull
+                    perform_fn_in_thread(git_pull, self.repo.clone(), self.error_modal.clone(), self.commit_graph.clone(), self.is_loading.clone());
                 }
                 if ui.button("Push").clicked() {
                     // TODO: Implement Push

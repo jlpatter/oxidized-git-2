@@ -3,8 +3,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use anyhow::Result;
 use egui::{ColorImage, Context};
+use git2::Repository;
 use image::io::Reader;
 use crate::backend::git_utils;
+use crate::frontend::commit_graph::CommitGraph;
 use crate::frontend::modals::ErrorModal;
 use crate::frontend::tab::OG2Tab;
 
@@ -39,4 +41,23 @@ pub fn load_image_from_path(path: &Path) -> Result<ColorImage> {
         size,
         pixels.as_slice(),
     ))
+}
+
+pub fn perform_fn_in_thread(
+    some_fn: fn(&Repository) -> Result<()>,
+    repo_c: Arc<Mutex<Repository>>,
+    error_modal_c: Arc<Mutex<ErrorModal>>,
+    commit_graph_c: Arc<Mutex<CommitGraph>>,
+    is_loading_c: Arc<Mutex<bool>>
+) {
+    thread::spawn(move || {
+        *is_loading_c.lock().unwrap() = true;
+        let res = some_fn(&repo_c.lock().unwrap());
+        let opt = error_modal_c.lock().unwrap().handle_error(res);
+        if let Some(()) = opt {
+            let res = commit_graph_c.lock().unwrap().refresh_graph(&repo_c.lock().unwrap());
+            error_modal_c.lock().unwrap().handle_error(res);
+        }
+        *is_loading_c.lock().unwrap() = false;
+    });
 }

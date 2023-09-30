@@ -108,13 +108,13 @@ impl BranchTreeNode {
             // Add arrows next to collapsables.
             if self.is_expanded {
                 if let Some(down_arrow_texture) = &self.down_arrow_texture {
-                    if ui.add(Image::new(down_arrow_texture, down_arrow_texture.size_vec2()).sense(Sense::click())).clicked() {
+                    if ui.add(Image::new(down_arrow_texture).sense(Sense::click())).clicked() {
                         row_was_clicked = true;
                     }
                 }
             } else {
                 if let Some(right_arrow_texture) = &self.right_arrow_texture {
-                    if ui.add(Image::new(right_arrow_texture, right_arrow_texture.size_vec2()).sense(Sense::click())).clicked() {
+                    if ui.add(Image::new(right_arrow_texture).sense(Sense::click())).clicked() {
                         row_was_clicked = true;
                     }
                 }

@@ -15,7 +15,7 @@ pub struct OG2Tab {
     error_modal: Arc<Mutex<ErrorModal>>,
     branch_trees: [BranchTreeNode; 3],
     branch_tree_col_width: f32,
-    commit_graph: Arc<Mutex<CommitGraph>>,
+    commit_graph: CommitGraph,
 }
 
 impl OG2Tab {
@@ -29,8 +29,14 @@ impl OG2Tab {
             error_modal,
             branch_trees,
             branch_tree_col_width: 200.0,
-            commit_graph: Arc::new(Mutex::new(commit_graph)),
+            commit_graph,
         })
+    }
+
+    pub fn refresh_all(&mut self, ctx: &Context) -> Result<()> {
+        self.branch_trees = get_branch_trees(&self.repo.lock().unwrap(), ctx)?;
+        self.commit_graph.refresh_graph(&self.repo.lock().unwrap())?;
+        Ok(())
     }
 
     fn show_branch_tree_col(&mut self, ui: &mut Ui) {
@@ -49,14 +55,14 @@ impl OG2Tab {
         }
     }
 
-    pub fn show(&mut self, ui: &mut Ui) {
+    pub fn show(&mut self, ui: &mut Ui, this_tab_c: Arc<Mutex<Self>>) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 if ui.button("Fetch").clicked() {
-                    perform_fn_in_thread(git_fetch, self.repo.clone(), self.error_modal.clone(), self.commit_graph.clone(), self.is_loading.clone());
+                    perform_fn_in_thread(git_fetch, self.repo.clone(), self.error_modal.clone(), this_tab_c.clone(), self.is_loading.clone(), ui.ctx().clone());
                 }
                 if ui.button("Pull").clicked() {
-                    perform_fn_in_thread(git_pull, self.repo.clone(), self.error_modal.clone(), self.commit_graph.clone(), self.is_loading.clone());
+                    perform_fn_in_thread(git_pull, self.repo.clone(), self.error_modal.clone(), this_tab_c.clone(), self.is_loading.clone(), ui.ctx().clone());
                 }
                 if ui.button("Push").clicked() {
                     // TODO: Implement Push
@@ -66,7 +72,7 @@ impl OG2Tab {
             ui.with_layout(Layout::top_down(Align::Min).with_main_justify(true), |ui| {
                 ui.horizontal(|ui| {
                     self.show_branch_tree_col(ui);
-                    self.commit_graph.lock().unwrap().show(ui);
+                    self.commit_graph.show(ui);
                 });
             });
         });

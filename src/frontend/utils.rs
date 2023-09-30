@@ -6,11 +6,10 @@ use egui::{ColorImage, Context};
 use git2::Repository;
 use image::io::Reader;
 use crate::backend::git_utils;
-use crate::frontend::commit_graph::CommitGraph;
 use crate::frontend::modals::ErrorModal;
 use crate::frontend::tab::OG2Tab;
 
-pub fn open_repo_as_tab(tabs_arc: Arc<Mutex<Vec<OG2Tab>>>, active_tab_arc: Arc<Mutex<usize>>, error_modal_arc: Arc<Mutex<ErrorModal>>, is_loading: Arc<Mutex<bool>>, ctx_c: Context) -> Result<()> {
+pub fn open_repo_as_tab(tabs_arc: Arc<Mutex<Vec<Arc<Mutex<OG2Tab>>>>>, active_tab_arc: Arc<Mutex<usize>>, error_modal_arc: Arc<Mutex<ErrorModal>>, is_loading: Arc<Mutex<bool>>, ctx_c: Context) -> Result<()> {
     let repo_opt = git_utils::open_repo()?;
     // If a repo was actually opened
     if let Some((name, repo)) = repo_opt {
@@ -21,7 +20,7 @@ pub fn open_repo_as_tab(tabs_arc: Arc<Mutex<Vec<OG2Tab>>>, active_tab_arc: Arc<M
             let new_tab_opt = error_modal_arc.lock().unwrap().handle_error(new_tab_res);
             if let Some(new_tab) = new_tab_opt {
                 let mut tabs = tabs_arc.lock().unwrap();
-                tabs.push(new_tab);
+                tabs.push(Arc::new(Mutex::new(new_tab)));
 
                 let mut active_tab = active_tab_arc.lock().unwrap();
                 *active_tab = tabs.len() - 1;
@@ -47,15 +46,16 @@ pub fn perform_fn_in_thread(
     some_fn: fn(&Repository) -> Result<()>,
     repo_c: Arc<Mutex<Repository>>,
     error_modal_c: Arc<Mutex<ErrorModal>>,
-    commit_graph_c: Arc<Mutex<CommitGraph>>,
-    is_loading_c: Arc<Mutex<bool>>
+    tab_c: Arc<Mutex<OG2Tab>>,
+    is_loading_c: Arc<Mutex<bool>>,
+    ctx: Context,
 ) {
     thread::spawn(move || {
         *is_loading_c.lock().unwrap() = true;
         let res = some_fn(&repo_c.lock().unwrap());
         let opt = error_modal_c.lock().unwrap().handle_error(res);
         if let Some(()) = opt {
-            let res = commit_graph_c.lock().unwrap().refresh_graph(&repo_c.lock().unwrap());
+            let res = tab_c.lock().unwrap().refresh_all(&ctx);
             error_modal_c.lock().unwrap().handle_error(res);
         }
         *is_loading_c.lock().unwrap() = false;

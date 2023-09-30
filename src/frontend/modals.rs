@@ -98,7 +98,7 @@ impl AddTabModal {
         }
     }
 
-    pub fn show(&mut self, ui: &mut Ui, tabs: Arc<Mutex<Vec<OG2Tab>>>, active_tab: Arc<Mutex<usize>>) -> Result<()> {
+    pub fn show(&mut self, ui: &mut Ui, tabs: Arc<Mutex<Vec<Arc<Mutex<OG2Tab>>>>>, active_tab: Arc<Mutex<usize>>) -> Result<()> {
         if self.is_open {
             return self.show_in_modal(String::from("add-tab-modal"), ui, |inner_self, ui| -> Result<()> {
                 ui.label("To open a new tab, please initialize, open, or clone another repository.");

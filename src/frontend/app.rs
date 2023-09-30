@@ -10,7 +10,7 @@ const TAB_ADD_BTN_WIDTH: f32 = 20.0;
 
 pub struct OG2App {
     is_loading: Arc<Mutex<bool>>,
-    tabs: Arc<Mutex<Vec<OG2Tab>>>,
+    tabs: Arc<Mutex<Vec<Arc<Mutex<OG2Tab>>>>>,
     active_tab: Arc<Mutex<usize>>,
     error_modal: Arc<Mutex<ErrorModal>>,
     add_tab_modal: AddTabModal,
@@ -56,12 +56,12 @@ impl OG2App {
         });
     }
 
-    fn show_tab_btns(&mut self, ui: &mut Ui, tabs: &Vec<OG2Tab>) {
+    fn show_tab_btns(&mut self, ui: &mut Ui, tabs: &Vec<Arc<Mutex<OG2Tab>>>) {
         ui.horizontal(|ui| {
             let active_tab = *self.active_tab.lock().unwrap();
             let tab_width = ui.available_width() / tabs.len() as f32 - TAB_ADD_BTN_WIDTH;
             for (i, tab) in tabs.iter().enumerate() {
-                let selectable_label = SelectableLabel::new(active_tab == i, &tab.name);
+                let selectable_label = SelectableLabel::new(active_tab == i, &tab.lock().unwrap().name);
                 if ui.add_sized(Vec2::new(tab_width, TAB_HEIGHT), selectable_label).clicked() {
                     self.active_tab = Arc::new(Mutex::new(i));
                 }
@@ -96,10 +96,11 @@ impl eframe::App for OG2App {
 
             // This is done so 'self' doesn't get borrowed twice.
             let tabs_c = self.tabs.clone();
-            let mut tabs = tabs_c.lock().unwrap();
+            let tabs = tabs_c.lock().unwrap();
             if tabs.len() > 0 {
                 self.show_tab_btns(ui, &tabs);
-                tabs[*self.active_tab.lock().unwrap()].show(ui);
+                let tab_c = tabs[*self.active_tab.lock().unwrap()].clone();
+                tab_c.lock().unwrap().show(ui, tab_c.clone());
             } else {
                 // TODO: Add welcome splash screen?
                 self.show_welcome_btns(ui);

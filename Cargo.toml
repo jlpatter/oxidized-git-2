@@ -7,9 +7,9 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.*"
-egui = "0.23.*"
-eframe = "0.23.*"
+egui = "0.25.*"
+eframe = "0.25.*"
 image = { version = "0.24.*", features = ["png"] }
-rfd = "0.12.*"
+rfd = "0.13.*"
 directories = "5.0.*"
 git2 = "0.18.*"

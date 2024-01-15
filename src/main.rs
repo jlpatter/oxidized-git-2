@@ -6,8 +6,7 @@ mod backend;
 
 fn main()  -> eframe::Result<()> {
     let options = eframe::NativeOptions {
-        // This is broken for some reason :(
-        viewport: ViewportBuilder::default().with_app_id("oxidized-git-2".to_owned()).with_maximized(true),
+        viewport: ViewportBuilder::default().with_app_id("oxidized-git-2".to_owned()),
         centered: true,
         ..Default::default()
     };

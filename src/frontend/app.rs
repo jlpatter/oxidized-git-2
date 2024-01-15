@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 use eframe::Frame;
-use egui::{Button, Context, SelectableLabel, Ui, Vec2};
+use egui::{Button, Context, SelectableLabel, Ui, Vec2, ViewportCommand, Visuals};
 use crate::frontend::modals::{AddTabModal, ErrorModal, Modal};
 use crate::frontend::tab::OG2Tab;
 use crate::frontend::utils;
@@ -17,11 +17,13 @@ pub struct OG2App {
 }
 
 impl OG2App {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // Customize egui here with cc.egui_ctx.set_fonts and cc.egui_ctx.set_visuals.
         // Restore app state using cc.storage (requires the "persistence" feature).
         // Use the cc.gl (a glow::Context) to create graphics shaders and buffers that you can use
         // for e.g. egui::PaintCallback.
+        cc.egui_ctx.send_viewport_cmd(ViewportCommand::Maximized(true));
+        cc.egui_ctx.set_visuals(Visuals::dark());
         let error_modal = Arc::new(Mutex::new(ErrorModal::new()));
         let is_loading = Arc::new(Mutex::new(false));
         Self {
